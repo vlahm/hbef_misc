@@ -1,0 +1,41 @@
+#this file is hardlinked in dropbox/hbef and git/hbef
+
+#generate weekly stream files
+
+select * from current where date < '2019-06-01' and site in ('W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'HBK', 'ML70') order by date into outfile '/var/lib/mysql-files/HubbardBrook_weekly_stream_chemistry_curr.csv' fields terminated by ',' enclosed by '"' lines terminated by '\n';
+
+select * from historical where date < '2019-06-01' and site in ('W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'HBK', 'ML70') order by date into outfile '/var/lib/mysql-files/HubbardBrook_weekly_stream_chemistry_hist.csv' fields terminated by ',' enclosed by '"' lines terminated by '\n';
+
+
+#generate weekly precip files
+
+select * from current where date < '2019-06-01' and site not in ('W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'HBK', 'ML70', 'W7-Precip', 'N', 'S') order by date into outfile '/var/lib/mysql-files/HubbardBrook_weekly_precipitation_chemistry_curr.csv' fields terminated by ',' enclosed by '"' lines terminated by '\n';
+
+select * from historical where date < '2019-06-01' and site not in ('W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'HBK', 'ML70', 'W7-Precip', 'N', 'S') order by date into outfile '/var/lib/mysql-files/HubbardBrook_weekly_precipitation_chemistry_hist.csv' fields terminated by ',' enclosed by '"' lines terminated by '\n';
+
+
+#get and format header rows (SHOULD INSERT ", NOT '!; FIX IF YOU EVER HAVE TO USE THIS AGAIN)
+
+SELECT group_concat(column_name) FROM information_schema.columns WHERE table_schema = 'hbef' AND table_name = 'current';
+
+gsub(',', "', '",
+    "refNo,site,date,timeEST,pH,pHmetrohm,DIC,spCond,temp,ANC960,ANCMet,gageHt,hydroGraph,flowGageHt,precipCatch,fieldCode,notes,archived,uniqueID,waterYr,datetime,Ca,Mg,K,Na,TMAl,OMAl,Al_ICP,NH4,SO4,NO3,Cl,PO4,DOC,TDN,DON,SiO2,Mn,Fe,F,cationCharge,anionCharge,theoryCond,ionError,duplicate,sampleType,ionBalance")
+
+SELECT group_concat(column_name) FROM information_schema.columns WHERE table_schema = 'hbef' AND table_name = 'historical';
+
+gsub(',', "', '",
+    "refNo,site,date,timeEST,pH,DIC,spCond,temp,ANC960,ANCMet,gageHt,hydroGraph,flowGageHt,precipCatch,fieldCode,notes,uniqueID,waterYr,datetime,Ca,Mg,K,Na,TMAl,OMAl,Al_ICP,NH4,SO4,NO3,Cl,PO4,DOC,TDN,DON,SiO2,Mn,Fe,F,cationCharge,anionCharge,theoryCond,ionError,duplicate,sampleType,ionBalance,canonical")
+
+
+#add header rows:
+
+sed -i 1i"'refNo', 'site', 'date', 'timeEST', 'pH', 'pHmetrohm', 'DIC', 'spCond', 'temp', 'ANC960', 'ANCMet', 'gageHt', 'hydroGraph', 'flowGageHt', 'precipCatch', 'fieldCode', 'notes', 'archived', 'uniqueID', 'waterYr', 'datetime', 'Ca', 'Mg', 'K', 'Na', 'TMAl', 'OMAl', 'Al_ICP', 'NH4', 'SO4', 'NO3', 'Cl', 'PO4', 'DOC', 'TDN', 'DON', 'SiO2', 'Mn', 'Fe', 'F', 'cationCharge', 'anionCharge', 'theoryCond', 'ionError', 'duplicate', 'sampleType', 'ionBalance'" HubbardBrook_weekly_stream_chemistry_curr.csv
+
+sed -i 1i"'refNo', 'site', 'date', 'timeEST', 'pH', 'DIC', 'spCond', 'temp', 'ANC960', 'ANCMet', 'gageHt', 'hydroGraph', 'flowGageHt', 'precipCatch', 'fieldCode', 'notes', 'uniqueID', 'waterYr', 'datetime', 'Ca', 'Mg', 'K', 'Na', 'TMAl', 'OMAl', 'Al_ICP', 'NH4', 'SO4', 'NO3', 'Cl', 'PO4', 'DOC', 'TDN', 'DON', 'SiO2', 'Mn', 'Fe', 'F', 'cationCharge', 'anionCharge', 'theoryCond', 'ionError', 'duplicate', 'sampleType', 'ionBalance', 'canonical'" HubbardBrook_weekly_stream_chemistry_hist.csv
+
+sed -i 1i"'refNo', 'site', 'date', 'timeEST', 'pH', 'pHmetrohm', 'DIC', 'spCond', 'temp', 'ANC960', 'ANCMet', 'gageHt', 'hydroGraph', 'flowGageHt', 'precipCatch', 'fieldCode', 'notes', 'archived', 'uniqueID', 'waterYr', 'datetime', 'Ca', 'Mg', 'K', 'Na', 'TMAl', 'OMAl', 'Al_ICP', 'NH4', 'SO4', 'NO3', 'Cl', 'PO4', 'DOC', 'TDN', 'DON', 'SiO2', 'Mn', 'Fe', 'F', 'cationCharge', 'anionCharge', 'theoryCond', 'ionError', 'duplicate', 'sampleType', 'ionBalance'" HubbardBrook_weekly_precipitation_chemistry_curr.csv
+
+sed -i 1i"'refNo', 'site', 'date', 'timeEST', 'pH', 'DIC', 'spCond', 'temp', 'ANC960', 'ANCMet', 'gageHt', 'hydroGraph', 'flowGageHt', 'precipCatch', 'fieldCode', 'notes', 'uniqueID', 'waterYr', 'datetime', 'Ca', 'Mg', 'K', 'Na', 'TMAl', 'OMAl', 'Al_ICP', 'NH4', 'SO4', 'NO3', 'Cl', 'PO4', 'DOC', 'TDN', 'DON', 'SiO2', 'Mn', 'Fe', 'F', 'cationCharge', 'anionCharge', 'theoryCond', 'ionError', 'duplicate', 'sampleType', 'ionBalance', 'canonical'" HubbardBrook_weekly_precipitation_chemistry_hist.csv
+
+
+#finally, in R, merge current and historical; find and replace \N with NA
