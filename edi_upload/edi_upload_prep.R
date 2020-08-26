@@ -22,6 +22,9 @@ ph = read.csv('~/HubbardBrook_weekly_precipitation_chemistry_hist.csv',
               stringsAsFactors = FALSE,
               colClasses = 'character') %>%
     as_tibble() %>%
+    mutate(date = as.Date(date)) %>%
+    filter(! (site %in% c('N', 'S') & date >= as.Date('1969-06-01')) ) %>%
+    mutate(date = as.character(date)) %>%
     anti_join(pc, by='date')
 
 pc[pc == '\\N'] = NA
