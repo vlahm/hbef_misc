@@ -1,10 +1,13 @@
 library(tidyverse)
-library(readxl)
-library(openxlsx)
+library(lubridate)
 
-#TODO: warn about collapsed columns I-L
+#TODO: hook this up to database. change old_dates anywhere?
 
-#there's a corrupt header row in this excel file, so starting from csv instead
+# take 1 (OBSOLETE; starting from excel file with hidden columns) ####
+
+# library(readxl)
+# library(openxlsx)
+
 arch = read_xlsx('~/Downloads/HB physical archives stream samples-1.xlsx',
                  skip = 2,
                  col_types = c(watershed = 'text', bin = 'numeric',
@@ -19,14 +22,29 @@ arch = read_xlsx('~/Downloads/HB physical archives stream samples-1.xlsx',
                                `bottle type` = 'text', `old date` = 'text',
                                `notes sample condition` = 'text'))
 
-#TODO: take care of nalgene500 vs Nalgene500
 
 # arch = read.xlsx('~/Downloads/HB physical archives stream samples final.xlsx',
 #                  startRow = 3,
 #                  detectDates = FALSE)
 
+# take 2 (starting from CSV with unneeded columns removed) ####
 
-arch %>%
+arch = read_csv('~/Downloads/HB physical archives stream samples.csv',
+                skip = 2, col_types = 'cnnnccccccc') %>%
+    rename_with(~gsub('\\s+', '_', .))
 
+arch$time_EST[arch$time_EST == -9999] = NA
+arch$bottle_type = str_replace(arch$bottle_type,
+                               '[nN]algene ?([0-9]+)', 'Nalgene\\1')
+arch$bottle_type = str_replace(arch$bottle_type, '([0-9]+)mlNM', 'narrow\\1')
 
-arch = as_tibble(arch)
+arch = arch %>%
+    mutate(watershed = gsub('ws', 'W', watershed),
+           sample_date = mdy(sample_date),
+           date_weighed = mdy(date_weighed),
+           old_date = mdy(old_date),
+           time_EST = str_pad(time_EST, 4, 'left', '0'),
+           time_EST = paste0(substr(time_EST, 1, 2), ':',
+                             substr(time_EST, 3, 4), ':00'))
+
+# arch[!is.na(arch$old_date),] %>% select(watershed, sample_date, time_EST, old_date)
