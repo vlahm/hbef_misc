@@ -1,4 +1,4 @@
-#for uploading hbef stuff to edi (also see Dropbox/hbef/edi_upload_steps.txt)
+#for uploading hbef stuff to edi (also see .../hbef/edi_upload_steps.txt)
 
 library(tidyverse)
 
@@ -10,7 +10,9 @@ library(tidyverse)
 
 # precip ####
 
-pc = read.csv('~/HubbardBrook_weekly_precipitation_chemistry_curr.csv',
+args = commandArgs(trailingOnly=TRUE)[1]
+
+pc = read.csv(file.path(args[1], 'HubbardBrook_weekly_precipitation_chemistry_curr.csv'),
               stringsAsFactors = FALSE,
               colClasses = 'character') %>%
     as_tibble() %>%
@@ -18,7 +20,7 @@ pc = read.csv('~/HubbardBrook_weekly_precipitation_chemistry_curr.csv',
     filter(date >= as.Date('2013-06-01')) %>%
     mutate(date = as.character(date))
 
-ph = read.csv('~/HubbardBrook_weekly_precipitation_chemistry_hist.csv',
+ph = read.csv(file.path(args[1], 'HubbardBrook_weekly_precipitation_chemistry_hist.csv'),
               stringsAsFactors = FALSE,
               colClasses = 'character') %>%
     as_tibble() %>%
@@ -50,7 +52,7 @@ p = bind_rows(pc, ph) %>%
 
 # stream ####
 
-sc = read.csv('~/HubbardBrook_weekly_stream_chemistry_curr.csv',
+sc = read.csv(file.path(args[1], 'HubbardBrook_weekly_stream_chemistry_curr.csv'),
               stringsAsFactors = FALSE,
               colClasses = 'character') %>%
     as_tibble() %>%
@@ -58,7 +60,7 @@ sc = read.csv('~/HubbardBrook_weekly_stream_chemistry_curr.csv',
     filter(date >= as.Date('2013-06-01')) %>%
     mutate(date = as.character(date))
 
-sh = read.csv('~/HubbardBrook_weekly_stream_chemistry_hist.csv',
+sh = read.csv(file.path(args[1], 'HubbardBrook_weekly_stream_chemistry_hist.csv'),
               stringsAsFactors = FALSE,
               colClasses = 'character') %>%
     as_tibble() %>%
@@ -91,8 +93,8 @@ s = bind_rows(sc, sh) %>%
 
 p$datetime = NULL
 s$datetime = NULL
-write_csv(p, '~/git/hbef/hbef_misc/edi_upload/HubbardBrook_weekly_precipitation_chemistry.csv')
-write_csv(s, '~/git/hbef/hbef_misc/edi_upload/HubbardBrook_weekly_stream_chemistry.csv')
+write_csv(p, file.path(args[1], 'HubbardBrook_weekly_precipitation_chemistry.csv'))
+write_csv(s, file.path(args[1], 'HubbardBrook_weekly_stream_chemistry.csv'))
 
 # zz = read.csv('/tmp/mozilla_mike0/HubbardBrook_weekly_precipitation_chemistry.csv',
 #               stringsAsFactors = FALSE)
@@ -104,31 +106,31 @@ write_csv(s, '~/git/hbef/hbef_misc/edi_upload/HubbardBrook_weekly_stream_chemist
 
 # inspect date, time, datetime discrepancies (one time only) ####
 
-zz = p[which(apply(p[, c('date', 'timeEST', 'datetime')], 1,
-                   function(x) sum(is.na(x)) == 2)), c('date', 'timeEST', 'datetime')]
-as.data.frame(zz)
-zzz = s[which(apply(s[, c('date', 'timeEST', 'datetime')], 1,
-                    function(x) sum(is.na(x)) == 2)), c('date', 'timeEST', 'datetime')]
-as.data.frame(zzz)
-
-table(nchar(p$datetime))
-table(nchar(s$datetime))
-
-nrow(p)
-sum(is.na(p$datetime))
-sum(is.na(p$date))
-sum(is.na(p$timeEST))
-nrow(s)
-sum(is.na(s$datetime))
-sum(is.na(s$date))
-sum(is.na(s$timeEST))
-identical(which(is.na(p$timeEST)) , which(is.na(p$datetime)))
-identical(which(is.na(s$timeEST)) , which(is.na(s$datetime)))
-p[is.na(p$timeEST),]$date
-s[is.na(s$timeEST),]$date
-
-qq = bind_rows(p, s)
-nrow(qq)
-sum(is.na(qq$datetime))
-sum(is.na(qq$date))
-sum(is.na(qq$timeEST))
+# zz = p[which(apply(p[, c('date', 'timeEST', 'datetime')], 1,
+#                    function(x) sum(is.na(x)) == 2)), c('date', 'timeEST', 'datetime')]
+# as.data.frame(zz)
+# zzz = s[which(apply(s[, c('date', 'timeEST', 'datetime')], 1,
+#                     function(x) sum(is.na(x)) == 2)), c('date', 'timeEST', 'datetime')]
+# as.data.frame(zzz)
+#
+# table(nchar(p$datetime))
+# table(nchar(s$datetime))
+#
+# nrow(p)
+# sum(is.na(p$datetime))
+# sum(is.na(p$date))
+# sum(is.na(p$timeEST))
+# nrow(s)
+# sum(is.na(s$datetime))
+# sum(is.na(s$date))
+# sum(is.na(s$timeEST))
+# identical(which(is.na(p$timeEST)) , which(is.na(p$datetime)))
+# identical(which(is.na(s$timeEST)) , which(is.na(s$datetime)))
+# p[is.na(p$timeEST),]$date
+# s[is.na(s$timeEST),]$date
+#
+# qq = bind_rows(p, s)
+# nrow(qq)
+# sum(is.na(qq$datetime))
+# sum(is.na(qq$date))
+# sum(is.na(qq$timeEST))
