@@ -76,7 +76,8 @@ var_map = c(ANC = 'ANC960',
             # SampleDate = 'date',
             # SampleTime = 'timeEST',
             Temp_C = 'temp',
-            Site = 'site')
+            Site = 'site',
+            PrecipCatch = 'precipCatch')
 
 inds = base::match(names(var_map), colnames(d))
 colnames(d)[inds] = unname(var_map)
@@ -88,7 +89,7 @@ var_map = append(var_map, as.list(var_map2))
 setdiff(tolower(colnames(d0)), tolower(colnames(d)))
 setdiff(tolower(colnames(d)), tolower(colnames(d0)))
 
-#earliest dates by variable ####
+# ANCILLARY earliest dates by variable ####
 
 earliest_date_comparisons = tibble()
 for(i in seq_along(var_map)){
@@ -112,7 +113,7 @@ select(d, Site, date, !!v) %>% filter(! is.na(!!sym(v))) %>% arrange(date) %>% V
 
 write_csv(earliest_date_comparisons, 'earliest_date_comparisons.csv')
 
-#last dates by variable ####
+# ANCILLARY last dates by variable ####
 
 last_date_comparisons = tibble()
 for(i in seq_along(var_map)){
@@ -136,7 +137,7 @@ err_dates = d0$date[err_date_inds]
 fixed_dates = as.Date(sub('^20([0-9]{2})', '19\\1', as.character(err_dates)))
 d0$date[err_date_inds] = fixed_dates
 
-#plot the variables that appear to go farther back in the new file ####
+# ANCILLARY plot the variables that appear to go farther back in the new file ####
 # d = rename(d, site = Site)
 vv = colnames(d)
 vv = vv[! vv %in% c('date', 'timeEST', 'site', 'Discharge_ls', 'Pass', 'FieldCode', 'VarCode', 'hydroGraph', 'Al-Ferron', 'ANCMet', 'PrecipCatch')]
@@ -178,3 +179,130 @@ for(v in vv){
 #     dygraphs::dyRangeSelector()
 
 #still need to remove -999s and stuff that leaked through (notify jeff)
+
+
+#combine old and new datasets ####
+
+# d_long = d %>%
+#     select(-FieldCode, -VarCode, -Pass, -Discharge_ls) %>%
+#     rename(Al_ferron = `Al-Ferron`) %>%
+#     pivot_longer(-all_of(c('site', 'timeEST', 'date', 'hydroGraph', 'ANCMet')), names_to = 'var', values_to = 'val')
+#
+# d0_long = d0 %>%
+#     pivot_longer(-all_of(c('site', 'timeEST', 'date', 'hydroGraph', 'ANCMet', 'duplicate', 'sampleType', 'canonical', 'datetime', 'uniqueID', 'gageHt', )), names_to = 'var', values_to = 'val')
+
+d = d %>%
+    select(-FieldCode, -VarCode, -Pass, -Discharge_ls) %>%
+    rename(Al_ferron = `Al-Ferron`) %>%
+    filter(site != 'W101')
+    # mutate(source = 'new')
+
+# sdt = d0[, c('site', 'date', 'timeEST')]
+# d0[duplicated(sdt) | duplicated(sdt, fromLast = TRUE),] %>%
+#     arrange(site, date, timeEST) %>%
+#     View()
+# sdt = d[, c('site', 'date', 'timeEST')]
+# d[duplicated(sdt) | duplicated(sdt, fromLast = TRUE),] %>%
+#     arrange(site, date, timeEST) %>%
+#     select(site, date, timeEST) %>%
+#     mutate(a = paste(site, date, timeEST)) %>%
+#     pull(a) %>%
+#     table()
+# # pull(Pass) %>% table()
+
+d$duplicate = NA_character_
+d$duplicate[duplicated(d[, c('site', 'date', 'timeEST')])] = 'Dup'
+
+d0$Al_ferron = NA_real_
+d0$timeEST = as.character(d0$timeEST)
+# d0$source = 'orig'
+
+# dout = full_join(d0, d, by = c('site', 'date', 'timeEST'), suffix = c('_orig', '_new'))
+# d2 = anti_join(d, d0, by = c('site', 'date', 'timeEST'))
+# filter(d0, site == 'W4', ! is.na(anionCharge))
+# filter(d, site == 'W4', ! is.na(anionCharge))
+
+# d_source = rep(NA, nrow(dout))
+# d_source[! is.na(dout$source_orig)] = dout$source_orig[! is.na(dout$source_orig)]
+# d_source[! is.na(dout$source_new)] = dout$source_new[! is.na(dout$source_new)]
+
+for(vv in colnames(d)){
+
+    if(vv %in% c('site', 'timeEST', 'date')) next
+
+    d_sites = d %>%
+        select(site, !!vv) %>%
+        filter(! is.na(!!sym(vv))) %>%
+        distinct(site) %>% pull()
+
+    d0_sites = d0 %>%
+        select(site, !!vv) %>%
+        filter(! is.na(!!sym(vv))) %>%
+        distinct(site) %>% pull()
+
+    sites_to_incorporate = setdiff(d_sites, d0_sites)
+
+    for(ss in sites_to_incorporate){
+
+        sitedatetimes_to_be_inserted = d %>%
+            select(site, date, timeEST, !!vv) %>%
+            filter(! is.na(!!sym(vv)), site == !!ss) %>%
+            mutate(datetime = paste(date, timeEST)) %>%
+            pull(datetime)
+
+        sitedatetimes_already_extant = d0 %>%
+            select(site, date, timeEST, !!vv) %>%
+            filter(site == !!ss) %>%
+            mutate(datetime = paste(date, timeEST)) %>%
+            pull(datetime)
+
+        if(! all(sitedatetimes_to_be_inserted %in% sitedatetimes_already_extant)) stop('!')
+
+        d_filt = filter(d, site == !!ss) %>%
+            select(site, date, timeEST, !!vv, duplicate)
+
+        d0 = left_join(d0, d_filt, by=c('site', 'date', 'timeEST', 'duplicate'),
+                  suffix = c('', '_insert'))
+        vv_insert = paste0(vv, '_insert')
+
+        insert_inds = ! is.na(d0[[vv_insert]])
+        d0[insert_inds, vv] = d0[insert_inds, vv_insert]
+        d0[[vv_insert]] = NULL
+    }
+}
+
+# ANCILLARY plot again ####
+
+vv = colnames(d)
+vv = vv[! vv %in% c('date', 'timeEST', 'site', 'Discharge_ls', 'Pass', 'FieldCode', 'VarCode', 'hydroGraph', 'Al-Ferron', 'ANCMet', 'PrecipCatch')]
+for(v in vv){
+
+    v_portal = paste0(v, '_portal')
+    v_file = paste0(v, '_file')
+
+    dd0 = d0 %>%
+        # mutate(datetime = ymd_hms(paste(date, timeEST))) %>%
+        # select(site, datetime, !!v) %>%
+        select(site, date, !!v) %>%
+        # full_join(select(d, site, datetime = date, !!v), by = c('site', 'date'), suffix = c('_portal', '_file')) %>%
+        full_join(select(d, site, date, !!v), by = c('site', 'date'), suffix = c('_portal', '_file')) %>%
+        filter(if_any(starts_with(paste0(v, '_')), ~ ! is.na(.)))
+
+    dd0[v_portal < 0, v_portal] = 0
+    dd0[v_file < 0, v_file] = 0
+    # mutate(Mn_portal = ifelse(Mn_portal < 0, 0, Mn_portal)) %>%
+    # mutate(Mn_file = ifelse(Mn_file < 0, 0, Mn_file)) %>%
+    # ggplot(aes(x = datetime, y = Mn_portal, color = 'red')) +
+    dd0 %>%
+        ggplot(aes(x = date, y = !!sym(v_portal), color = 'red', size = 1.5)) +
+        geom_point() +
+        facet_wrap(.~site, scales = 'free_y') +
+        geom_point(aes(y = !!sym(v_file), size = 1), color = 'blue') +
+        labs(y = '', title = paste('variable:', v), subtitle = "red = data on portal; blue = data in Jeff's file") +
+        theme(legend.position="none")
+    # ggtitle()
+
+    ggsave(paste0('out/portal_vs_file_comparison/', v, '_by_site.png'), width = 10, height = 8)
+}
+
+#MAKE SURE DUP COL IS STILL CHILL
