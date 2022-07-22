@@ -3,15 +3,30 @@ library(lubridate)
 library(ggplot2)
 
 setwd('~/git/hbef/hbef_misc/historical_data_update/')
+
 d = readxl::read_xlsx('20220713HBEFChem.xlsx', sheet = 2, na = 'NA', guess_max = 25000) %>%
     filter(Site != 'AvgRG1+RG11')
 d$Site[d$Site == 'RG-North'] = 'N'
 d$Site[d$Site == 'RG-South'] = 'S'
 d$Site[d$Site == 'STA/22'] = 'RG22'
 d = select(d, -`Al-FerronNotes`, -Project, -starts_with('SubProject'), -ends_with('Likens'))
+
 d0 = read_csv('hbef_historical.csv', na = '\\N', col_names = FALSE, guess_max = 25000)
 hist_names = c('refNo','site','date','timeEST','pH','DIC','spCond','temp','ANC960','ANCMet','gageHt','hydroGraph','flowGageHt','precipCatch','fieldCode','notes','uniqueID','waterYr','datetime','Ca','Mg','K','Na','TMAl','OMAl','Al_ICP','NH4','SO4','NO3','Cl','PO4','DOC','TDN','DON','SiO2','Mn','Fe','F','cationCharge','anionCharge','theoryCond','ionError','duplicate','sampleType','ionBalance','canonical')
 colnames(d0) = hist_names
+
+#got an additional W7 file from Jeff at some point
+
+w7 = readxl::read_xlsx('W7 1995-2013 update.xlsx', na = 'NA', guess_max = 25000)
+w7 = select(w7, -Project, -starts_with('SubProject'), -ends_with('Likens'))
+# dw7 = filter(d, Site == 'W7')
+# setdiff(paste(w7$SampleDate, w7$SampleTime), paste(dw7$SampleDate, dw7$SampleTime))
+# setdiff(paste(dw7$SampleDate, dw7$SampleTime), paste(w7$SampleDate, w7$SampleTime))
+d = filter(d, Site != 'W7')
+d = bind_rows(d, w7)
+
+# setdiff(colnames(w7), colnames(d))
+# setdiff(colnames(d), colnames(w7))
 
 #site names ####
 known_sites = c('HBK', 'N', 'RG1', 'RG11', 'RG19', 'RG22', 'RG23', 'S', 'W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W7-Precip', 'W8', 'W9')
@@ -92,6 +107,106 @@ var_map = append(var_map, as.list(var_map2))
 
 setdiff(tolower(colnames(d0)), tolower(colnames(d)))
 setdiff(tolower(colnames(d)), tolower(colnames(d0)))
+
+#some times are entered wrong in one dataset or another. correct them here. ####
+
+
+# select(to_rebuild, where(~any(! is.na(.))))
+# print(qqq, n=100)
+d0$timeEST = as.character(d0$timeEST)
+
+d[d$site == 'W1' & d$date == as.Date('1999-10-19') & is.na(d$timeEST), 'timeEST'] = '00:00:00'
+d[d$site == 'W1' & d$date == as.Date('1999-10-20') & is.na(d$timeEST), 'timeEST'] = '00:00:00'
+d[d$site == 'W1' & d$date == as.Date('2006-10-02'), 'timeEST'] = '14:35:00'
+d[d$site == 'W1' & d$date == as.Date('2006-11-20'), 'timeEST'] = '13:55:00'
+d[d$site == 'W1' & d$date == as.Date('2007-03-05'), 'timeEST'] = '13:55:00'
+d0[d0$site == 'W1' & d0$date == as.Date('2007-05-29'), 'timeEST'] = '10:00:00'
+d[d$site == 'W1' & d$date == as.Date('2007-10-11'), 'timeEST'] = NA
+d[d$site == 'W1' & d$date == as.Date('2008-11-24'), 'timeEST'] = '14:35:00'
+# d[d$site == 'W1' & d$date == as.Date('2013-03-13'), c('date', 'timeEST')]
+
+d[d$site == 'W1' & d$date == as.Date('2013-03-12') & d$timeEST == '00:00:00', 'date'] = as.Date('2013-03-13')
+d0[d0$site == 'W1' & d0$date == as.Date('2013-03-12') & is.na(d0$timeEST), 'timeEST'] = '00:00:00'
+d0[d0$site == 'W1' & d0$date == as.Date('2013-03-12') & d0$timeEST == '00:00:00', 'date'] = as.Date('2013-03-13')
+
+# d[d$site == 'W1' & d$date == as.Date('2013-03-13') & d$timeEST == '00:00:00', c('date', 'timeEST')]
+# d0[d0$site == 'W1' & d0$date == as.Date('2013-03-13'), 'timeEST']
+
+d[d$site == 'W1' & d$date == as.Date('2012-09-18') & d$timeEST == '00:00:00', 'date'] = as.Date('2012-09-19')
+d0[d0$site == 'W1' & d0$date == as.Date('2012-09-18') & is.na(d0$timeEST), 'timeEST'] = '00:00:00'
+d0[d0$site == 'W1' & d0$date == as.Date('2012-09-18') & d0$timeEST == '00:00:00', 'date'] = as.Date('2012-09-19')
+
+d[d$site == 'W1' & d$date == as.Date('2012-10-29') & d$timeEST == '00:00:00', 'date'] = as.Date('2012-10-30')
+d0[d0$site == 'W1' & d0$date == as.Date('2012-10-29') & is.na(d0$timeEST), 'timeEST'] = '00:00:00'
+d0[d0$site == 'W1' & d0$date == as.Date('2012-10-29') & d0$timeEST == '00:00:00', 'date'] = as.Date('2012-10-30')
+
+d[d$site == 'W6' & d$date == as.Date('2007-10-11'), 'timeEST'] = NA
+d[d$site == 'W1' & d$date == as.Date('2012-05-17'), 'timeEST'] #actual orphan (dupe)
+d[d$site == 'W1' & d$date == as.Date('2012-10-28') & d$timeEST == '00:00:00', 'timeEST'] = NA
+d[d$site == 'W2' & d$date == as.Date('2011-12-26'), 'timeEST'] #actual orphan (dupe)
+
+d[d$site == 'W3' & d$date == as.Date('1991-07-15'), 'timeEST'] #actual orphan
+d[d$site == 'W5' & d$date == as.Date('2009-07-06'), 'timeEST'] #actual orphan
+d[d$site == 'W5' & d$date == as.Date('2009-07-13'), 'timeEST'] #actual orphan
+
+d$duplicate = NA_character_
+d$duplicate[duplicated(d[, c('site', 'date', 'timeEST')])] = 'Dup'
+d = d[! (d$site == 'HBK' & d$date == as.Date('2013-05-13') & ! is.na(d$duplicate)),]
+d$duplicate = NULL #will reattach later
+
+
+# d0[d0$site == 'W1' & d0$date == as.Date('2012-05-17'), 'duplicate']
+# d[d$site == 'W1' & d$date == as.Date('2012-05-17'), 'duplicate']
+# tt = 'W6'; dd = as.Date('1989-10-18')
+# bind_rows(d0[d0$site == tt & d0$date == dd,],
+#           to_rebuild[to_rebuild$site == tt & to_rebuild$date == dd, ])
+# filter(d0, site == tt, year(date) == 1989) %>% View()
+#
+# for(i in 20:nrow(to_rebuild)){
+#
+#     r = to_rebuild[i, ]
+#
+#     print(paste(r$site, r$date))
+#     avail_cols = colnames(select(r, where(~any(! is.na(.)))))
+#     comparison_pool = filter(d0, site == r$site, year(date) == year(r$date))
+#
+#     diffs = rep(NA, nrow(comparison_pool))
+#     for(j in seq_len(nrow(comparison_pool))){
+#         cmp = comparison_pool[j, ]
+#         cmp_cols = bind_rows(r, cmp) %>%
+#             select(-refNo, -site, -date, -timeEST, -waterYr, -uniqueID, -notes,
+#                    -fieldCode, -duplicate, -sampleType, -canonical, -datetime) %>%
+#             select(any_of(avail_cols))
+#         cmp_cols[1, ] = t(scale(unlist(cmp_cols[1, ])))
+#         cmp_cols[2, ] = t(scale(unlist(cmp_cols[2, ])))
+#         diffs[j] = sum(abs(cmp_cols[1, ] - cmp_cols[2, ]))
+#     }
+#
+#     print(t(bind_rows(r, comparison_pool[which.min(diffs), ])))
+#     # t(bind_rows(select(r, -refNo, -site, -date, -timeEST, -waterYr, -uniqueID, -notes,
+#     #                    -fieldCode, -duplicate, -sampleType, -canonical, -datetime),
+#     #             select(comparison_pool[which.min(diffs), ],
+#     #                    -refNo, -site, -date, -timeEST, -waterYr, -uniqueID, -notes,
+#     #                    -fieldCode, -duplicate, -sampleType, -canonical, -datetime)))
+#     catch = readLines(con = stdin(), 1)
+#
+#     print(filter(qqq, site == r$site, date == r$date), n=100)
+#     catch = readLines(con = stdin(), 1)
+# }
+# select(r, where(~any(! is.na(.))))
+# filter(d0, site == r$site, date == r$date) %>% select(duplicate, everything()) %>% print(n=100)
+# bind_rows(r, d0) %>% filter(site == r$site, date == r$date) %>% select(timeEST, any_of(avail_cols)) %>% print(n=100)
+# bind_rows(r, d0) %>% filter(site == r$site, date == r$date) %>% select(timeEST, everything()) %>% print(n=100) %>% View()
+#
+ff = filter(d, date %in% as.Date(c('2012-09-17', '2012-09-18', '2012-09-19')), site == 'W1') %>% mutate(dt = ymd_hms(paste(date, timeEST))) %>% arrange(dt)
+plot(ff$dt, ff$gageHt)
+# ff = filter(d, date %in% as.Date(c('1999-10-18', '1999-10-19', '1999-10-20')), site == 'W1') %>% mutate(dt = ymd_hms(paste(date, timeEST))) %>% arrange(dt)
+# plot(ff$dt, ff$gageHt)
+#
+# bind_rows(r, filter(d0, site=='W3', year(date) == 1991)) %>% View()
+# bind_rows(r, filter(d0, site=='W5', is.na(cationCharge), is.na(ionError), is.na(ionBalance), is.na(gageHt))) %>% View()
+# bind_rows(r, filter(d0, site=='W6', is.na(cationCharge), is.na(ionError), is.na(ionBalance), is.na(gageHt))) %>% View()
+
 
 # ANCILLARY earliest dates by variable ####
 
@@ -190,7 +305,7 @@ save.image('for_comparison_plot_before.rda')
 # #still need to remove -999s and stuff that leaked through (notify jeff)
 #
 
-#combine old and new datasets. clean up a few other things ####
+#clean up a few other things ####
 
 # d_long = d %>%
 #     select(-FieldCode, -VarCode, -Pass, -Discharge_ls) %>%
@@ -206,8 +321,8 @@ save.image('for_comparison_plot_before.rda')
 
 d = d %>%
     select(-FieldCode, -VarCode, -Pass, -Discharge_ls) %>%
-    rename(Al_ferron = `Al-Ferron`) %>%
-    filter(site != 'W101')
+    rename(Al_ferron = `Al-Ferron`)
+    # filter(site != 'W101')
     # mutate(source = 'new')
 
 # sdt = d0[, c('site', 'date', 'timeEST')]
@@ -227,9 +342,15 @@ d$duplicate = NA_character_
 d$duplicate[duplicated(d[, c('site', 'date', 'timeEST')])] = 'Dup'
 
 d0$Al_ferron = NA_real_
-d0$timeEST = as.character(d0$timeEST)
+# d0$timeEST = as.character(d0$timeEST)
 d0$DOC[d0$site == 'N' & ! is.na(d0$DOC)] = NA #just one value
 # d0$source = 'orig'
+
+# sum(substr(d$timeEST[! is.na(d$timeEST)], 1, 5) == '24:00')
+# sum(substr(d0$timeEST[! is.na(d0$timeEST)], 1, 5) == '24:00')
+# table(d0$canonical)
+# class(d0$canonical)
+d0$canonical = as.logical(d0$canonical)
 
 #correct site N timeEST from UTC to EST in d0 ####
 n_inds = d0$site == 'N'
@@ -248,6 +369,17 @@ d0$timeEST[d0$site == 'N'] = times_fixed
 # d_source = rep(NA, nrow(dout))
 # d_source[! is.na(dout$source_orig)] = dout$source_orig[! is.na(dout$source_orig)]
 # d_source[! is.na(dout$source_new)] = dout$source_new[! is.na(dout$source_new)]
+
+
+#clean up w101 and hold it till later ####
+d101 = filter(d, site == 'W101')
+d = filter(d, site != 'W101')
+
+qqq = paste(d0$site, d0$date, d0$timeEST)
+d0[duplicated(qqq) | duplicated(qqq, fromLast = T), c('site', 'date', 'timeEST', 'duplicate')] %>% arrange(site, date, timeEST, duplicate) %>% print(n=100)
+
+qqq = paste(d101$site, d101$date, d101$timeEST)
+d101[duplicated(qqq) | duplicated(qqq, fromLast = T), c('site', 'date', 'timeEST', 'duplicate')] %>% arrange(site, date, timeEST, duplicate) %>% print(n=100)
 
 #insert d records into d0 ####
 
@@ -323,6 +455,7 @@ for(vv in colnames(d)){
         # d0 = left_join(d0, d_filt, by=c('site', 'date', 'timeEST', 'duplicate'),
         d0 = full_join(d0, d_filt, by=c('site', 'date', 'timeEST', 'duplicate'),
                   suffix = c('', '_insert'))
+        # print(nrow(d0))
         vv_insert = paste0(vv, '_insert')
 
         if('new_ind_insert' %in% colnames(d0)){
@@ -336,6 +469,8 @@ for(vv in colnames(d)){
         d0[[vv_insert]] = NULL
     }
 }
+
+d0 = bind_rows(d0, d101)
 
 #verify that new rows are legit. remove indicator cols, rebuild metadata cols for new records ####
 
@@ -358,6 +493,23 @@ adj_wys = month(to_rebuild$date) < 6
 to_rebuild$waterYr[adj_wys] = to_rebuild$waterYr[adj_wys] - 1
 to_rebuild$datetime = format(ymd_hms(paste(to_rebuild$date, to_rebuild$timeEST)),
                              '%m/%d/%y %H:%M')
+select(to_rebuild, where(~any(! is.na(.))))
+
+# dupdts = paste(to_rebuild$site, to_rebuild$date, to_rebuild$timeEST)
+# arrange(d0[paste(d0$site, d0$date, d0$timeEST) %in% dupdts, c('site', 'date', 'timeEST', 'duplicate')], site, date, timeEST)
+# arrange(to_rebuild[, c('site', 'date', 'timeEST', 'duplicate')], site, date, timeEST)
+
+d0 = bind_rows(d0, to_rebuild)
+
+write_csv(filter(tail(d0, n=6), is.na(duplicate)), 'unmatched_rows.csv')
+# filter(d0, site == 'W1', date == as.Date('2006-10-02'))
+# filter(d0, site == 'W1', date == as.Date('2008-11-24'))
+# d0 = d0[1:(nrow(d0) - 20),]
+
+qqq = left_join(to_rebuild[, c('site', 'date', 'timeEST', 'duplicate')],
+          d0[, c('site', 'date', 'timeEST', 'duplicate')],
+          by = c('site', 'date'))
+print(qqq, n=100)
 
 # ANCILLARY plot again ####
 
@@ -432,14 +584,14 @@ to_rebuild$datetime = format(ymd_hms(paste(to_rebuild$date, to_rebuild$timeEST))
 d0 = arrange(d0, site, date, timeEST)
 d0$theoryCond[! is.na(d0$theoryCond) & d0$theoryCond == -99.9] = NA
 d0$theoryCond[! is.na(d0$theoryCond) & d0$theoryCond > 1500] = NA
-d0$Al_ferron[! is.na(d0$Al_ferron) & d0$Al_ferron < 0] = NA
+d0$Al_ferron[! is.na(d0$Al_ferron) & d0$Al_ferron < 0] = 0
 d0$NH4[! is.na(d0$NH4) & d0$NH4 == -999.99] = NA
 d0$PO4[! is.na(d0$PO4) & d0$PO4 == -999.99] = NA
 # plot(density(na.omit(d0$cationCharge)))
 # range(d0$cationCharge, na.rm=T)
 d0$cationCharge[! is.na(d0$cationCharge) & d0$cationCharge == 1000000000] = NA
 d0$cationCharge[! is.na(d0$cationCharge) & d0$cationCharge == 999000000] = NA
-d0$cationCharge[! is.na(d0$cationCharge) & d0$cationCharge < 0] = NA
+d0$cationCharge[! is.na(d0$cationCharge) & d0$cationCharge < 0] = 0
 # plot(density(na.omit(d0$anionCharge)))
 # range(d0$anionCharge, na.rm=T)
 d0$anionCharge = -abs(d0$anionCharge)
