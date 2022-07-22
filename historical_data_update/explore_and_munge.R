@@ -2,8 +2,6 @@ library(tidyverse)
 library(lubridate)
 library(ggplot2)
 
-## REMOVE THE DOC AND DON VALUES WITH ALL 0S PRIOR TO 1992, OR JUST REPLACE D0 DOC AND DON WITH D DOC AND DON
-
 setwd('~/git/hbef/hbef_misc/historical_data_update/')
 d = readxl::read_xlsx('20220713HBEFChem.xlsx', sheet = 2, na = 'NA', guess_max = 25000) %>%
     filter(Site != 'AvgRG1+RG11')
@@ -47,11 +45,17 @@ paste(d_sites, collapse = ', ')
 #
 # filter(d, is.na(SampleTime) & ! is.na(EST)) %>% View()
 
+#site N times are in UTC in d (determined below)
+# filter(d, Site == 'N') %>% select(SampleDate, SampleTime, EST) %>% pull(SampleTime) %>% substr(12, 13) %>% as.numeric() %>% max(., na.rm=T)
+
 #okay, so the EST column is bollocks
 d = d %>%
     mutate(date = ymd(d$SampleDate),
            timeEST = substr(d$SampleTime, 12, 19)) %>%
     select(-EST, -SampleDate, -SampleTime)
+
+# filter(d0, ! is.na(DOC)) %>% select(site, date, timeEST, DOC) %>% arrange(desc(date))
+# filter(d, ! is.na(DOC)) %>% select(Site, SampleDate, SampleTime, EST, DOC) %>% arrange(desc(SampleDate))
 
 #column names ####
 d_names = colnames(d)
@@ -91,97 +95,102 @@ setdiff(tolower(colnames(d)), tolower(colnames(d0)))
 
 # ANCILLARY earliest dates by variable ####
 
-earliest_date_comparisons = tibble()
-for(i in seq_along(var_map)){
-    v = unlist(var_map[i], use.names = FALSE)
-    tryCatch({
-        d_earliest = filter(d, ! is.na(!!sym(v))) %>% summarize(mindate = min(date)) %>% pull() %>% as.Date()
-        d0_earliest = filter(d0, ! is.na(!!sym(v))) %>% summarize(mindate = min(date)) %>% pull()
-        earliest_date_comparisons = bind_rows(earliest_date_comparisons,
-                  tibble(variable = v, first_record_portal = d0_earliest,
-                         first_record_file = d_earliest,
-                         earlier = case_when(d_earliest < d0_earliest ~ 'file',
-                                             d_earliest == d0_earliest ~ '-',
-                                             TRUE ~ 'portal')))
-    }, warning = function(w) print('a'))
-}
-
-select(d0, site, date, !!v) %>% filter(! is.na(!!sym(v))) %>% arrange(date)
-select(d0, site, date, !!v) %>% filter(! is.na(!!sym(v))) %>% arrange(date) %>% View()
-select(d, Site, date, !!v) %>% filter(! is.na(!!sym(v))) %>% arrange(date)
-select(d, Site, date, !!v) %>% filter(! is.na(!!sym(v))) %>% arrange(date) %>% View()
-
-write_csv(earliest_date_comparisons, 'earliest_date_comparisons.csv')
+# earliest_date_comparisons = tibble()
+# for(i in seq_along(var_map)){
+#     v = unlist(var_map[i], use.names = FALSE)
+#     tryCatch({
+#         d_earliest = filter(d, ! is.na(!!sym(v))) %>% summarize(mindate = min(date)) %>% pull() %>% as.Date()
+#         d0_earliest = filter(d0, ! is.na(!!sym(v))) %>% summarize(mindate = min(date)) %>% pull()
+#         earliest_date_comparisons = bind_rows(earliest_date_comparisons,
+#                   tibble(variable = v, first_record_portal = d0_earliest,
+#                          first_record_file = d_earliest,
+#                          earlier = case_when(d_earliest < d0_earliest ~ 'file',
+#                                              d_earliest == d0_earliest ~ '-',
+#                                              TRUE ~ 'portal')))
+#     }, warning = function(w) print('a'))
+# }
+#
+# select(d0, site, date, !!v) %>% filter(! is.na(!!sym(v))) %>% arrange(date)
+# select(d0, site, date, !!v) %>% filter(! is.na(!!sym(v))) %>% arrange(date) %>% View()
+# select(d, Site, date, !!v) %>% filter(! is.na(!!sym(v))) %>% arrange(date)
+# select(d, Site, date, !!v) %>% filter(! is.na(!!sym(v))) %>% arrange(date) %>% View()
+#
+# write_csv(earliest_date_comparisons, 'earliest_date_comparisons.csv')
 
 # ANCILLARY last dates by variable ####
 
-last_date_comparisons = tibble()
-for(i in seq_along(var_map)){
-    v = unlist(var_map[i], use.names = FALSE)
-    tryCatch({
-        d_earliest = filter(d, ! is.na(!!sym(v))) %>% summarize(mindate = max(date)) %>% pull() %>% as.Date()
-        d0_earliest = filter(d0, ! is.na(!!sym(v))) %>% summarize(mindate = max(date)) %>% pull()
-        last_date_comparisons = bind_rows(last_date_comparisons,
-                                          tibble(variable = v, first_record_portal = d0_earliest,
-                                                 first_record_file = d_earliest,
-                                                 later = case_when(d_earliest < d0_earliest ~ 'portal',
-                                                                   d_earliest == d0_earliest ~ '-',
-                                                                   TRUE ~ 'file')))
-    }, warning = function(w) print('a'))
-}
+# last_date_comparisons = tibble()
+# for(i in seq_along(var_map)){
+#     v = unlist(var_map[i], use.names = FALSE)
+#     tryCatch({
+#         d_earliest = filter(d, ! is.na(!!sym(v))) %>% summarize(mindate = max(date)) %>% pull() %>% as.Date()
+#         d0_earliest = filter(d0, ! is.na(!!sym(v))) %>% summarize(mindate = max(date)) %>% pull()
+#         last_date_comparisons = bind_rows(last_date_comparisons,
+#                                           tibble(variable = v, first_record_portal = d0_earliest,
+#                                                  first_record_file = d_earliest,
+#                                                  later = case_when(d_earliest < d0_earliest ~ 'portal',
+#                                                                    d_earliest == d0_earliest ~ '-',
+#                                                                    TRUE ~ 'file')))
+#     }, warning = function(w) print('a'))
+# }
 
-#correct dates in future ####
+#correct dates in future, remove Al_ICP from d0 ####
 
 err_date_inds = d0$date > Sys.Date()
 err_dates = d0$date[err_date_inds]
 fixed_dates = as.Date(sub('^20([0-9]{2})', '19\\1', as.character(err_dates)))
 d0$date[err_date_inds] = fixed_dates
 
+d0$Al_ICP = NA_real_
+
+# for pre comparison_plot.Rmd ####
+save.image('for_comparison_plot_before.rda')
 # ANCILLARY plot the variables that appear to go farther back in the new file ####
+
 # d = rename(d, site = Site)
-vv = colnames(d)
-vv = vv[! vv %in% c('date', 'timeEST', 'site', 'Discharge_ls', 'Pass', 'FieldCode', 'VarCode', 'hydroGraph', 'Al-Ferron', 'ANCMet', 'PrecipCatch')]
-for(v in vv){
+# vv = colnames(d)
+# vv = vv[! vv %in% c('date', 'timeEST', 'site', 'Discharge_ls', 'Pass', 'FieldCode', 'VarCode', 'hydroGraph', 'Al-Ferron', 'ANCMet', 'PrecipCatch')]
+# for(v in vv){
+#
+#     v_portal = paste0(v, '_portal')
+#     v_file = paste0(v, '_file')
+#
+#     dd0 = d0 %>%
+#         # mutate(datetime = ymd_hms(paste(date, timeEST))) %>%
+#         # select(site, datetime, !!v) %>%
+#         select(site, date, !!v) %>%
+#         # full_join(select(d, site, datetime = date, !!v), by = c('site', 'date'), suffix = c('_portal', '_file')) %>%
+#         full_join(select(d, site, date, !!v), by = c('site', 'date'), suffix = c('_portal', '_file')) %>%
+#         filter(if_any(starts_with(paste0(v, '_')), ~ ! is.na(.)))
+#
+#     dd0[v_portal < 0, v_portal] = 0
+#     dd0[v_file < 0, v_file] = 0
+#         # mutate(Mn_portal = ifelse(Mn_portal < 0, 0, Mn_portal)) %>%
+#         # mutate(Mn_file = ifelse(Mn_file < 0, 0, Mn_file)) %>%
+#         # ggplot(aes(x = datetime, y = Mn_portal, color = 'red')) +
+#     dd0 %>%
+#         ggplot(aes(x = date, y = !!sym(v_portal), color = 'red', size = 1.5)) +
+#         geom_point() +
+#         facet_wrap(.~site, scales = 'free_y') +
+#         geom_point(aes(y = !!sym(v_file), size = 1), color = 'blue') +
+#         labs(y = '', title = paste('variable:', v), subtitle = "red = data on portal; blue = data in Jeff's file") +
+#         theme(legend.position="none")
+#         # ggtitle()
+#
+#     ggsave(paste0('out/portal_vs_file_comparison/', v, '_by_site.png'), width = 10, height = 8)
+# }
+#
+# # plt <- dygraphs::dygraph(xts::xts(select(d, -date),
+# #                                   order.by = d$date),
+# #                          main = paste0(sit_, ' (NSE ', nse, ')')) %>%
+# #     dygraphs::dyAxis('x', drawGrid = FALSE) %>%
+# #     dygraphs::dyAxis('y', drawGrid = FALSE, label = 'runoff (mm/d)') %>%
+# #     dygraphs::dyRangeSelector()
+#
+# #still need to remove -999s and stuff that leaked through (notify jeff)
+#
 
-    v_portal = paste0(v, '_portal')
-    v_file = paste0(v, '_file')
-
-    dd0 = d0 %>%
-        # mutate(datetime = ymd_hms(paste(date, timeEST))) %>%
-        # select(site, datetime, !!v) %>%
-        select(site, date, !!v) %>%
-        # full_join(select(d, site, datetime = date, !!v), by = c('site', 'date'), suffix = c('_portal', '_file')) %>%
-        full_join(select(d, site, date, !!v), by = c('site', 'date'), suffix = c('_portal', '_file')) %>%
-        filter(if_any(starts_with(paste0(v, '_')), ~ ! is.na(.)))
-
-    dd0[v_portal < 0, v_portal] = 0
-    dd0[v_file < 0, v_file] = 0
-        # mutate(Mn_portal = ifelse(Mn_portal < 0, 0, Mn_portal)) %>%
-        # mutate(Mn_file = ifelse(Mn_file < 0, 0, Mn_file)) %>%
-        # ggplot(aes(x = datetime, y = Mn_portal, color = 'red')) +
-    dd0 %>%
-        ggplot(aes(x = date, y = !!sym(v_portal), color = 'red', size = 1.5)) +
-        geom_point() +
-        facet_wrap(.~site, scales = 'free_y') +
-        geom_point(aes(y = !!sym(v_file), size = 1), color = 'blue') +
-        labs(y = '', title = paste('variable:', v), subtitle = "red = data on portal; blue = data in Jeff's file") +
-        theme(legend.position="none")
-        # ggtitle()
-
-    ggsave(paste0('out/portal_vs_file_comparison/', v, '_by_site.png'), width = 10, height = 8)
-}
-
-# plt <- dygraphs::dygraph(xts::xts(select(d, -date),
-#                                   order.by = d$date),
-#                          main = paste0(sit_, ' (NSE ', nse, ')')) %>%
-#     dygraphs::dyAxis('x', drawGrid = FALSE) %>%
-#     dygraphs::dyAxis('y', drawGrid = FALSE, label = 'runoff (mm/d)') %>%
-#     dygraphs::dyRangeSelector()
-
-#still need to remove -999s and stuff that leaked through (notify jeff)
-
-
-#combine old and new datasets ####
+#combine old and new datasets. clean up a few other things ####
 
 # d_long = d %>%
 #     select(-FieldCode, -VarCode, -Pass, -Discharge_ls) %>%
@@ -190,6 +199,10 @@ for(v in vv){
 #
 # d0_long = d0 %>%
 #     pivot_longer(-all_of(c('site', 'timeEST', 'date', 'hydroGraph', 'ANCMet', 'duplicate', 'sampleType', 'canonical', 'datetime', 'uniqueID', 'gageHt', )), names_to = 'var', values_to = 'val')
+
+# filter(d0, ! is.na(DOC)) %>% select(site, date, timeEST, DOC) %>% arrange(desc(date)) %>%
+#     slice(1) %>% pull(timeEST) %>% as.character()
+# filter(d, ! is.na(DOC)) %>% select(site, date, timeEST, DOC) %>% arrange(desc(date))
 
 d = d %>%
     select(-FieldCode, -VarCode, -Pass, -Discharge_ls) %>%
@@ -215,7 +228,17 @@ d$duplicate[duplicated(d[, c('site', 'date', 'timeEST')])] = 'Dup'
 
 d0$Al_ferron = NA_real_
 d0$timeEST = as.character(d0$timeEST)
+d0$DOC[d0$site == 'N' & ! is.na(d0$DOC)] = NA #just one value
 # d0$source = 'orig'
+
+#correct site N timeEST from UTC to EST in d0 ####
+n_inds = d0$site == 'N'
+n_times = d0$timeEST[n_inds]
+n_dates = d0$date[n_inds]
+n_datetimes = with_tz(ymd_hms(paste(n_dates, n_times), tz = 'UTC'), 'EST')
+times_fixed = substr(n_datetimes, 12, 19)
+times_fixed[times_fixed == ''] = NA
+d0$timeEST[d0$site == 'N'] = times_fixed
 
 # dout = full_join(d0, d, by = c('site', 'date', 'timeEST'), suffix = c('_orig', '_new'))
 # d2 = anti_join(d, d0, by = c('site', 'date', 'timeEST'))
@@ -226,9 +249,14 @@ d0$timeEST = as.character(d0$timeEST)
 # d_source[! is.na(dout$source_orig)] = dout$source_orig[! is.na(dout$source_orig)]
 # d_source[! is.na(dout$source_new)] = dout$source_new[! is.na(dout$source_new)]
 
+#insert d records into d0 ####
+
+d0$existing_ind = 1
 for(vv in colnames(d)){
 
-    if(vv %in% c('site', 'timeEST', 'date')) next
+    print(vv)
+
+    if(vv %in% c('site', 'timeEST', 'date', 'duplicate')) next
 
     d_sites = d %>%
         select(site, !!vv) %>%
@@ -243,27 +271,65 @@ for(vv in colnames(d)){
     sites_to_incorporate = setdiff(d_sites, d0_sites)
 
     for(ss in sites_to_incorporate){
+    # for(ss in unique(d$site)){
+
+        print(paste('     ', ss))
 
         sitedatetimes_to_be_inserted = d %>%
             select(site, date, timeEST, !!vv) %>%
             filter(! is.na(!!sym(vv)), site == !!ss) %>%
-            mutate(datetime = paste(date, timeEST)) %>%
-            pull(datetime)
+            mutate(datetime = paste(date, timeEST))
+            # pull(datetime)
 
         sitedatetimes_already_extant = d0 %>%
             select(site, date, timeEST, !!vv) %>%
             filter(site == !!ss) %>%
-            mutate(datetime = paste(date, timeEST)) %>%
-            pull(datetime)
+            mutate(datetime = paste(date, timeEST))
+            # pull(datetime)
 
-        if(! all(sitedatetimes_to_be_inserted %in% sitedatetimes_already_extant)) stop('!')
+        # #to determine that site N from d is in UTC and must be converted to EST (run the two chunks above without "pull"
+        # filter(d, date == as.Date('1995-09-18')) %>% select(site, date, timeEST)
+        # qrq = gsub(':', '', sitedatetimes_already_extant$timeEST) %>% as.numeric()
+        # qrz = gsub(':', '', d0$timeEST) %>% as.numeric()
+        # plot(density(na.omit(qrq)))
+        # plot(density(na.omit(qrz)))
 
-        d_filt = filter(d, site == !!ss) %>%
-            select(site, date, timeEST, !!vv, duplicate)
+        # try({
+        # qrq = gsub(':', '', sitedatetimes_to_be_inserted$timeEST) %>% as.numeric()
+        # qrz = gsub(':', '', sitedatetimes_already_extant$timeEST) %>% as.numeric()
+        # dx = density(na.omit(qrq))$x
+        # dy = density(na.omit(qrq))$y
+        # d0x = density(na.omit(qrz))$x
+        # d0y = density(na.omit(qrz))$y
+        # ylim = range(c(dy, d0y))
+        # xlim = range(c(dx, d0x))
+        # plot(dx, dy, xlim = xlim, ylim = ylim, type = 'l', col = 'blue')
+        # lines(d0x, d0y, col = 'red')
+        # legend('topright', legend = c('new', 'extant'), lty = 1, col = c('blue', 'red'))
+        # })
+        #
+        # catch = readLines(con = stdin(), 1)
 
-        d0 = left_join(d0, d_filt, by=c('site', 'date', 'timeEST', 'duplicate'),
+        # if(! all(sitedatetimes_to_be_inserted$datetime %in% sitedatetimes_already_extant$datetime)) stop('!')
+        # # if(! all(sitedatetimes_to_be_inserted %in% sitedatetimes_already_extant$timeEST)) message('!')
+        # # next
+        # diffs = setdiff(sitedatetimes_to_be_inserted$datetime,sitedatetimes_already_extant$datetime)
+        # filter(d, timeEST %in% diffs) %>% select(site, date, timeEST, !!vv, duplicate)
+
+        d_filt = filter(d, ! is.na(!!sym(vv)), site == !!ss) %>%
+            select(site, date, timeEST, !!vv, duplicate) %>%
+            mutate(new_ind = 1)
+
+        # d0 = left_join(d0, d_filt, by=c('site', 'date', 'timeEST', 'duplicate'),
+        d0 = full_join(d0, d_filt, by=c('site', 'date', 'timeEST', 'duplicate'),
                   suffix = c('', '_insert'))
         vv_insert = paste0(vv, '_insert')
+
+        if('new_ind_insert' %in% colnames(d0)){
+            insert_inds = ! is.na(d0$new_ind_insert)
+            d0[insert_inds, 'new_ind'] = d0[insert_inds, 'new_ind_insert']
+            d0$new_ind_insert = NULL
+        }
 
         insert_inds = ! is.na(d0[[vv_insert]])
         d0[insert_inds, vv] = d0[insert_inds, vv_insert]
@@ -271,38 +337,115 @@ for(vv in colnames(d)){
     }
 }
 
+#verify that new rows are legit. remove indicator cols, rebuild metadata cols for new records ####
+
+newrows = ! is.na(d0$new_ind) & is.na(d0$existing_ind)
+select(d0[newrows,], where(~any(! is.na(.))))
+
+d0$new_ind = d0$existing_ind = NULL
+
+to_rebuild = d0[newrows, ]
+d0 = d0[! newrows, ]
+
+repcols = setdiff(colnames(d0), colnames(d))
+to_rebuild[, c('date', 'timeEST', repcols)]
+d0[1:5, repcols]
+to_rebuild$uniqueID = paste0(to_rebuild$site, '_',
+                             gsub('[ \\-]', '', to_rebuild$date), '_',
+                             substr(gsub('[ \\:]', '', to_rebuild$timeEST), 1, 4))
+to_rebuild$waterYr = year(to_rebuild$date)
+adj_wys = month(to_rebuild$date) < 6
+to_rebuild$waterYr[adj_wys] = to_rebuild$waterYr[adj_wys] - 1
+to_rebuild$datetime = format(ymd_hms(paste(to_rebuild$date, to_rebuild$timeEST)),
+                             '%m/%d/%y %H:%M')
+
 # ANCILLARY plot again ####
 
-vv = colnames(d)
-vv = vv[! vv %in% c('date', 'timeEST', 'site', 'Discharge_ls', 'Pass', 'FieldCode', 'VarCode', 'hydroGraph', 'Al-Ferron', 'ANCMet', 'PrecipCatch')]
-for(v in vv){
+# vv = colnames(d)
+# vv = vv[! vv %in% c('date', 'timeEST', 'site', 'Discharge_ls', 'Pass', 'FieldCode', 'VarCode', 'hydroGraph', 'Al-Ferron', 'ANCMet', 'PrecipCatch', 'duplicate')]
+# for(v in vv){
+#
+#     print(v)
+#
+#     v_portal = paste0(v, '_portal')
+#     v_file = paste0(v, '_file')
+#
+#     dd0 = d0 %>%
+#         # mutate(datetime = ymd_hms(paste(date, timeEST))) %>%
+#         # select(site, datetime, !!v) %>%
+#         select(site, date, !!v) %>%
+#         # full_join(select(d, site, datetime = date, !!v), by = c('site', 'date'), suffix = c('_portal', '_file')) %>%
+#         full_join(select(d, site, date, !!v), by = c('site', 'date'), suffix = c('_portal', '_file')) %>%
+#         filter(if_any(starts_with(paste0(v, '_')), ~ ! is.na(.)))
+#
+#     dd0[v_portal < 0, v_portal] = 0
+#     dd0[v_file < 0, v_file] = 0
+#     # mutate(Mn_portal = ifelse(Mn_portal < 0, 0, Mn_portal)) %>%
+#     # mutate(Mn_file = ifelse(Mn_file < 0, 0, Mn_file)) %>%
+#     # ggplot(aes(x = datetime, y = Mn_portal, color = 'red')) +
+#     out = dd0 %>%
+#         ggplot(aes(x = date, y = !!sym(v_portal), color = 'red', size = 1.5)) +
+#         geom_point() +
+#         facet_wrap(.~site, scales = 'free_y') +
+#         geom_point(aes(y = !!sym(v_file), size = 1), color = 'blue') +
+#         labs(y = '', title = paste('variable:', v), subtitle = "red = data on portal; blue = data in Jeff's file") +
+#         theme(legend.position="none")
+#     # ggtitle()
+#
+#     print(out)
+#     readLines(con = stdin(), 1)
+#     # ggsave(paste0('out/portal_vs_file_comparison/', v, '_by_site.png'), width = 10, height = 8)
+# }
 
-    v_portal = paste0(v, '_portal')
-    v_file = paste0(v, '_file')
+# Al_ICP still needs work (nvm. just gonna remove it from d0 and use what's in d. finished above) ####
+#
+# qq = select(d0, site, date, timeEST, Al_ICP, TMAl, OMAl, Al_ferron) %>%
+#     filter(if_any(all_of(c('Al_ICP', 'TMAl', 'OMAl', 'Al_ferron')), ~(! is.na(.))))
+#
+# # select(d0, site, date, timeEST, Al_ICP, TMAl, OMAl, Al_ferron) %>%
+# #     filter(if_any(all_of(c('Al_ICP', 'TMAl', 'OMAl', 'Al_ferron')), ~(! is.na(.))))
+#
+# qq$alna = apply(qq[, 4:7], 1, function(x) sum(is.na(x)))
+#
+# filter(qq, alna == 1)
+#
+# for(ss in unique(d0$site)){
+#     ddd = filter(d0, site == !!ss)
+#     ddd$timeEST[is.na(ddd$timeEST)] = '12:00:00'
+#     ddd$datetime = ymd_hms(paste(ddd$date, ddd$timeEST))
+#     ddd = arrange(ddd, datetime)
+#     plot(ddd$datetime, ddd$Al_ICP, type = 'l', col = 'blue')
+#     lines(ddd$datetime, ddd$TMAl, col = 'red')
+#     lines(ddd$datetime, ddd$OMAl, col = 'black')
+#     lines(ddd$datetime, ddd$Al_ferron, col = 'green')
+#     readLines(con = stdin(), 1)
+# }
+#
+# gfg = apply(d[, c('TMAl', 'OMAl', 'Al_ICP')], 1, function(x) sum(is.na(x)))
+# rtr = apply(d[, c('Al_ferron')], 1, function(x) sum(is.na(x)))
+# table(gfg)
+# table(rtr)
+# sum(rtr == 0 & gfg != 0)
 
-    dd0 = d0 %>%
-        # mutate(datetime = ymd_hms(paste(date, timeEST))) %>%
-        # select(site, datetime, !!v) %>%
-        select(site, date, !!v) %>%
-        # full_join(select(d, site, datetime = date, !!v), by = c('site', 'date'), suffix = c('_portal', '_file')) %>%
-        full_join(select(d, site, date, !!v), by = c('site', 'date'), suffix = c('_portal', '_file')) %>%
-        filter(if_any(starts_with(paste0(v, '_')), ~ ! is.na(.)))
+# other ####
 
-    dd0[v_portal < 0, v_portal] = 0
-    dd0[v_file < 0, v_file] = 0
-    # mutate(Mn_portal = ifelse(Mn_portal < 0, 0, Mn_portal)) %>%
-    # mutate(Mn_file = ifelse(Mn_file < 0, 0, Mn_file)) %>%
-    # ggplot(aes(x = datetime, y = Mn_portal, color = 'red')) +
-    dd0 %>%
-        ggplot(aes(x = date, y = !!sym(v_portal), color = 'red', size = 1.5)) +
-        geom_point() +
-        facet_wrap(.~site, scales = 'free_y') +
-        geom_point(aes(y = !!sym(v_file), size = 1), color = 'blue') +
-        labs(y = '', title = paste('variable:', v), subtitle = "red = data on portal; blue = data in Jeff's file") +
-        theme(legend.position="none")
-    # ggtitle()
+d0 = arrange(d0, site, date, timeEST)
+d0$theoryCond[! is.na(d0$theoryCond) & d0$theoryCond == -99.9] = NA
+d0$theoryCond[! is.na(d0$theoryCond) & d0$theoryCond > 1500] = NA
+d0$Al_ferron[! is.na(d0$Al_ferron) & d0$Al_ferron < 0] = NA
+d0$NH4[! is.na(d0$NH4) & d0$NH4 == -999.99] = NA
+d0$PO4[! is.na(d0$PO4) & d0$PO4 == -999.99] = NA
+# plot(density(na.omit(d0$cationCharge)))
+# range(d0$cationCharge, na.rm=T)
+d0$cationCharge[! is.na(d0$cationCharge) & d0$cationCharge == 1000000000] = NA
+d0$cationCharge[! is.na(d0$cationCharge) & d0$cationCharge == 999000000] = NA
+d0$cationCharge[! is.na(d0$cationCharge) & d0$cationCharge < 0] = NA
+# plot(density(na.omit(d0$anionCharge)))
+# range(d0$anionCharge, na.rm=T)
+d0$anionCharge = -abs(d0$anionCharge)
 
-    ggsave(paste0('out/portal_vs_file_comparison/', v, '_by_site.png'), width = 10, height = 8)
-}
+qqq = select(d0, where(is.numeric))
+apply(qqq, 2, function(x) min(na.omit(x)))
 
-#MAKE SURE DUP COL IS STILL CHILL
+# for post comparison_plot.Rmd ####
+save.image('for_comparison_plot_after.rda')

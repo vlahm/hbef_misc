@@ -1,0 +1,64 @@
+---
+title: "historical HBEF dataset: HBWatER database vs. HBEF database (before merger)"
+date: "July 21, 2022"
+output: html_document
+editor_options:
+chunk_output_type: console
+---
+
+```{r, setup, echo = FALSE, message = FALSE}
+
+#MUST RUN explore_and_munge.R FIRST
+
+library(tidyverse)
+library(lubridate)
+library(ggplot2)
+library(htmltools)
+
+load('for_comparison_plot_before.rda')
+```
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+
+vv = colnames(d)
+vv = vv[! vv %in% c('date', 'timeEST', 'site', 'Discharge_ls', 'Pass', 'FieldCode', 'VarCode', 'hydroGraph', 'Al-Ferron', 'ANCMet', 'PrecipCatch', 'duplicate')]
+plt_lst = list()
+
+i = 0
+for(v in vv){
+    i = i + 1
+
+    # print(v)
+
+    v_portal = paste0(v, '_portal')
+    v_file = paste0(v, '_file')
+
+    dd0 = d0 %>%
+        # mutate(datetime = ymd_hms(paste(date, timeEST))) %>%
+        # select(site, datetime, !!v) %>%
+        select(site, date, !!v) %>%
+        # full_join(select(d, site, datetime = date, !!v), by = c('site', 'date'), suffix = c('_portal', '_file')) %>%
+        full_join(select(d, site, date, !!v), by = c('site', 'date'), suffix = c('_portal', '_file')) %>%
+        filter(if_any(starts_with(paste0(v, '_')), ~ ! is.na(.)))
+
+    dd0[v_portal < 0, v_portal] = 0
+    dd0[v_file < 0, v_file] = 0
+    # mutate(Mn_portal = ifelse(Mn_portal < 0, 0, Mn_portal)) %>%
+    # mutate(Mn_file = ifelse(Mn_file < 0, 0, Mn_file)) %>%
+    # ggplot(aes(x = datetime, y = Mn_portal, color = 'red')) +
+    out = dd0 %>%
+        ggplot(aes(x = date, y = !!sym(v_portal), color = 'red', size = 1.5)) +
+        geom_point() +
+        facet_wrap(.~site, scales = 'free_y') +
+        geom_point(aes(y = !!sym(v_file), size = 1), color = 'blue') +
+        labs(y = '', x = '', title = paste('variable:', v), subtitle = "red = HBWatER Portal (EDI); blue = HBEF database") +
+        theme(legend.position="none",
+              axis.text.x = element_text(angle = 45))
+    # ggtitle()
+
+    print(out)
+    # readLines(con = stdin(), 1)
+    # ggsave(paste0('out/portal_vs_file_comparison/', v, '_by_site.png'), width = 10, height = 8)
+    # plt_lst[[i]] <- out
+}
+```

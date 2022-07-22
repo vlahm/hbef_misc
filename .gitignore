@@ -2,3 +2,4 @@
 !historical_data_update/hbef_historical.csv
 historical_data_update/out/
 *.png
+*.rda
