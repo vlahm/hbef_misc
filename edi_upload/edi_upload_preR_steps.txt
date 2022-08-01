@@ -10,16 +10,16 @@ wateryears are apparently named for their starts, not ends, at hbef. so wateryea
 
 #generate weekly stream files (mysql)
 
-select * from current where date < '2021-06-01' and site in ('W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'HBK', 'ML70') order by date into outfile '/var/lib/mysql-files/HubbardBrook_weekly_stream_chemistry_curr.csv' fields terminated by ',' enclosed by '"' lines terminated by '\n';
+select * from current where date < '2021-06-01' and site in ('W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W101', 'HBK', 'ML70') order by date into outfile '/var/lib/mysql-files/HubbardBrook_weekly_stream_chemistry_curr.csv' fields terminated by ',' enclosed by '"' lines terminated by '\n';
 
-select * from historical where date < '2021-06-01' and site in ('W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'HBK', 'ML70') order by date into outfile '/var/lib/mysql-files/HubbardBrook_weekly_stream_chemistry_hist.csv' fields terminated by ',' enclosed by '"' lines terminated by '\n';
+select * from historical where date < '2021-06-01' and site in ('W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W101', 'HBK', 'ML70') order by date into outfile '/var/lib/mysql-files/HubbardBrook_weekly_stream_chemistry_hist.csv' fields terminated by ',' enclosed by '"' lines terminated by '\n';
 
 
 #generate weekly precip files (mysql)
 
-select * from current where date < '2021-06-01' and site not in ('W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'HBK', 'ML70', 'W7-Precip', 'N', 'S') order by date into outfile '/var/lib/mysql-files/HubbardBrook_weekly_precipitation_chemistry_curr.csv' fields terminated by ',' enclosed by '"' lines terminated by '\n';
+select * from current where date < '2021-06-01' and site not in ('W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W101', 'HBK', 'ML70', 'W7-Precip', 'N', 'S') order by date into outfile '/var/lib/mysql-files/HubbardBrook_weekly_precipitation_chemistry_curr.csv' fields terminated by ',' enclosed by '"' lines terminated by '\n';
 
-select * from historical where date < '2021-06-01' and site not in ('W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'HBK', 'ML70', 'W7-Precip') order by date into outfile '/var/lib/mysql-files/HubbardBrook_weekly_precipitation_chemistry_hist.csv' fields terminated by ',' enclosed by '"' lines terminated by '\n';
+select * from historical where date < '2021-06-01' and site not in ('W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W101', 'HBK', 'ML70', 'W7-Precip') order by date into outfile '/var/lib/mysql-files/HubbardBrook_weekly_precipitation_chemistry_hist.csv' fields terminated by ',' enclosed by '"' lines terminated by '\n';
 
 
 #get and format header rows (mysql; this shouldn't have changed, so this section should be skippable)
@@ -41,11 +41,11 @@ cd /var/lib/mysql-files
 
 sed -i 1i'"refNo", "site", "date", "timeEST", "pH", "pHmetrohm", "DIC", "spCond", "temp", "ANC960", "ANCMet", "gageHt", "hydroGraph", "flowGageHt", "precipCatch", "fieldCode", "notes", "archived", "uniqueID", "waterYr", "datetime", "Ca", "Mg", "K", "Na", "TMAl", "OMAl", "Al_ICP", "NH4", "SO4", "NO3", "Cl", "PO4", "DOC", "TDN", "DON", "SiO2", "Mn", "Fe", "F", "cationCharge", "anionCharge", "theoryCond", "ionError", "duplicate", "sampleType", "ionBalance"' HubbardBrook_weekly_stream_chemistry_curr.csv
 
-sed -i 1i'"refNo", "site", "date", "timeEST", "pH", "DIC", "spCond", "temp", "ANC960", "ANCMet", "gageHt", "hydroGraph", "flowGageHt", "precipCatch", "fieldCode", "notes", "uniqueID", "waterYr", "datetime", "Ca", "Mg", "K", "Na", "TMAl", "OMAl", "Al_ICP", "NH4", "SO4", "NO3", "Cl", "PO4", "DOC", "TDN", "DON", "SiO2", "Mn", "Fe", "F", "cationCharge", "anionCharge", "theoryCond", "ionError", "duplicate", "sampleType", "ionBalance", "canonical"' HubbardBrook_weekly_stream_chemistry_hist.csv
+sed -i 1i'"refNo", "site", "date", "timeEST", "pH", "DIC", "spCond", "temp", "ANC960", "ANCMet", "gageHt", "hydroGraph", "flowGageHt", "precipCatch", "fieldCode", "notes", "uniqueID", "waterYr", "datetime", "Ca", "Mg", "K", "Na", "TMAl", "OMAl", "Al_ICP", "Al_ferron", "NH4", "SO4", "NO3", "Cl", "PO4", "DOC", "TDN", "DON", "SiO2", "Mn", "Fe", "F", "cationCharge", "anionCharge", "theoryCond", "ionError", "duplicate", "sampleType", "ionBalance", "canonical"' HubbardBrook_weekly_stream_chemistry_hist.csv
 
 sed -i 1i'"refNo", "site", "date", "timeEST", "pH", "pHmetrohm", "DIC", "spCond", "temp", "ANC960", "ANCMet", "gageHt", "hydroGraph", "flowGageHt", "precipCatch", "fieldCode", "notes", "archived", "uniqueID", "waterYr", "datetime", "Ca", "Mg", "K", "Na", "TMAl", "OMAl", "Al_ICP", "NH4", "SO4", "NO3", "Cl", "PO4", "DOC", "TDN", "DON", "SiO2", "Mn", "Fe", "F", "cationCharge", "anionCharge", "theoryCond", "ionError", "duplicate", "sampleType", "ionBalance"' HubbardBrook_weekly_precipitation_chemistry_curr.csv
 
-sed -i 1i'"refNo", "site", "date", "timeEST", "pH", "DIC", "spCond", "temp", "ANC960", "ANCMet", "gageHt", "hydroGraph", "flowGageHt", "precipCatch", "fieldCode", "notes", "uniqueID", "waterYr", "datetime", "Ca", "Mg", "K", "Na", "TMAl", "OMAl", "Al_ICP", "NH4", "SO4", "NO3", "Cl", "PO4", "DOC", "TDN", "DON", "SiO2", "Mn", "Fe", "F", "cationCharge", "anionCharge", "theoryCond", "ionError", "duplicate", "sampleType", "ionBalance", "canonical"' HubbardBrook_weekly_precipitation_chemistry_hist.csv
+sed -i 1i'"refNo", "site", "date", "timeEST", "pH", "DIC", "spCond", "temp", "ANC960", "ANCMet", "gageHt", "hydroGraph", "flowGageHt", "precipCatch", "fieldCode", "notes", "uniqueID", "waterYr", "datetime", "Ca", "Mg", "K", "Na", "TMAl", "OMAl", "Al_ICP", "Al_ferron", "NH4", "SO4", "NO3", "Cl", "PO4", "DOC", "TDN", "DON", "SiO2", "Mn", "Fe", "F", "cationCharge", "anionCharge", "theoryCond", "ionError", "duplicate", "sampleType", "ionBalance", "canonical"' HubbardBrook_weekly_precipitation_chemistry_hist.csv
 
 
 #move the files to an unrestricted directory and change ownership (bash; still as root)
@@ -56,7 +56,9 @@ chown mike:mike *
 
 ---
 
-when all that is done, move any local versions of the final two hbef csvfiles into the previous_versions directory with an incremented ID number (e.g. HubbardBrook_weekly_precipitation_chemistry3.csv).
+so now there are 4 files. two precip files and two stream files. these will eventually become just two files, one for precip and one for stream.
+
+move any local versions of those final two files into a previous_versions directory (or something similar) with an incremented ID number (e.g. HubbardBrook_weekly_precipitation_chemistry3.csv). you can delete the local versions of the 4 prerequisite (hist and curr) files.
 then use sftp or something else to pull these four CSVs to that local machine, so you can easily email them out.
     [on local machine] cd /path/to/hbef/hbef_misc/edi_upload
     sftp mike@165.22.183.347

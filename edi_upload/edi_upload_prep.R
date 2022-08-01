@@ -1,4 +1,4 @@
-#for uploading hbef stuff to edi (also see .../hbef/edi_upload_steps.txt)
+#for uploading hbef stuff to edi (also see .../hbef/edi_upload_preR_steps.txt)
 
 library(tidyverse)
 
@@ -94,7 +94,7 @@ p = bind_rows(pc, ph) %>%
         timeEST = substr(timeEST, 1, 5)) %>%
     select(site, date, timeEST, pH, DIC, spCond, temp, ANC960, ANCMet,
            precipCatch, fieldCode, notes, uniqueID, waterYr, datetime, Ca, Mg,
-           K, Na, TMAl, OMAl, Al_ICP, NH4, SO4, NO3, Cl, PO4, DOC, TDN, DON,
+           K, Na, TMAl, OMAl, Al_ICP, Al_ferron, NH4, SO4, NO3, Cl, PO4, DOC, TDN, DON,
            SiO2, Mn, Fe, `F`, cationCharge, anionCharge, ionError,
            duplicate, sampleType, ionBalance, canonical, pHmetrohm) %>%
     mutate(across(everything(), as.character))
@@ -143,7 +143,7 @@ s = bind_rows(sc, sh) %>%
         timeEST = substr(timeEST, 1, 5)) %>%
     select(site, date, timeEST, pH, DIC, spCond, temp, ANC960, ANCMet, gageHt,
            hydroGraph, flowGageHt, fieldCode, notes, uniqueID, waterYr,
-           datetime, Ca, Mg, K, Na, TMAl, OMAl, Al_ICP, NH4, SO4, NO3, Cl, PO4,
+           datetime, Ca, Mg, K, Na, TMAl, OMAl, Al_ICP, Al_ferron, NH4, SO4, NO3, Cl, PO4,
            DOC, TDN, DON, SiO2, Mn, Fe, `F`, cationCharge, anionCharge,
            ionError, duplicate, sampleType, ionBalance, canonical,
            pHmetrohm) %>%

@@ -474,12 +474,17 @@ d0 = bind_rows(d0, d101)
 
 #verify that new rows are legit. remove indicator cols, rebuild metadata cols for new records ####
 
+# jj = d0[duplicated(d0$uniqueID) | duplicated(d0$uniqueID, fromLast = TRUE), ] %>% as_tibble()
+# unique(jj$site)
+# arrange(jj, uniqueID) %>% select(refNo, uniqueID, site, date, timeEST, pH, duplicate)
+
 newrows = ! is.na(d0$new_ind) & is.na(d0$existing_ind)
 select(d0[newrows,], where(~any(! is.na(.))))
 
 d0$new_ind = d0$existing_ind = NULL
 
 to_rebuild = d0[newrows, ]
+
 d0 = d0[! newrows, ]
 
 repcols = setdiff(colnames(d0), colnames(d))
@@ -510,6 +515,22 @@ qqq = left_join(to_rebuild[, c('site', 'date', 'timeEST', 'duplicate')],
           d0[, c('site', 'date', 'timeEST', 'duplicate')],
           by = c('site', 'date'))
 print(qqq, n=100)
+
+#also rebuild information for W101 rows, all of which are new ####
+
+
+# repcols = setdiff(colnames(d0), colnames(d))
+# to_rebuild[, c('date', 'timeEST', repcols)]
+# d0[1:5, repcols]
+w101r = d0$site == 'W101'
+d0$uniqueID[w101r] = paste0(d0$site[w101r], '_',
+                             gsub('[ \\-]', '', d0$date[w101r]), '_',
+                             substr(gsub('[ \\:]', '', d0$timeEST[w101r]), 1, 4))
+d0$waterYr[w101r] = year(d0$date[w101r])
+adj_wys = month(d0$date[w101r]) < 6
+d0$waterYr[w101r][adj_wys] = d0$waterYr[w101r][adj_wys] - 1
+d0$datetime[w101r] = format(ymd_hms(paste(d0$date[w101r], d0$timeEST[w101r])),
+                             '%m/%d/%y %H:%M')
 
 # ANCILLARY plot again ####
 
@@ -601,3 +622,29 @@ apply(qqq, 2, function(x) min(na.omit(x)))
 
 # for post comparison_plot.Rmd ####
 save.image('for_comparison_plot_after.rda')
+
+#write file for insertion into hbef database ####
+# d0bak = d0
+# d0bak -> d0
+
+remaining_dupes = duplicated(d0$uniqueID) | duplicated(d0$uniqueID, fromLast = TRUE)
+ergh = d0[remaining_dupes, ]
+d0 = d0[! remaining_dupes, ]
+ergh = ergh %>%
+    filter((site == 'W101' & is.na(duplicate)) | (site != 'W101' & ! is.na(refNo)))
+d0 = bind_rows(d0, ergh) %>%
+    arrange(site, date, timeEST)
+
+# jj = d0[duplicated(d0$uniqueID) | duplicated(d0$uniqueID, fromLast = TRUE), ] %>% as_tibble()
+# unique(jj$site)
+# arrange(jj, uniqueID) %>% select(refNo, uniqueID, site, date, timeEST, pH, duplicate)
+
+d0 = as.data.frame(d0)
+d0[is.na(d0)] = '\\N' #mysql can't interpret NA, but \N becomes NULL
+d0 = relocate(d0, Al_ferron, .after = Al_ICP)
+d0[[48]] = NULL
+# missing_uniqids = d0$uniqueID == '\\N'
+# dq = d0[missing_uniqids, ]
+# d0[missing_uniqids, ] = paste0(
+
+write_csv(d0, 'historical_data_fixed.csv')
