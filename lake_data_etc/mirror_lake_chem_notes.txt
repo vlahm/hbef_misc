@@ -1,0 +1,5 @@
+CHEM COLUMNS AVAILABLE:
+Ca, Mg, K, Na, AL-icp, NH4, pH, H conc, SO4, NO3, Cl, PO4, TOTP, DOC, TDN, DIC, SiO2, ANC, Cations, Anions, SpCond, Calc cond, Temp °C, Stage, Flow, H graph, field code, ION bal, ION error
+
+CHEM COLUMNS ON EDI
+Ca  Mg  K  Na  NH4  pH  SO4  NO3  Cl  PO4  SiO2  

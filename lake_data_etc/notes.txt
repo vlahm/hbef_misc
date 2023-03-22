@@ -1,0 +1,43 @@
+
+DISCUSSION
+
+is ANC ANC960 or ANCMet?
+Al_ferron or Al_ICP?
+hydrograph vals for ml70 are weird:
+    normal: "L" "F" "R" "P" "N"  
+    weird: "STAGE"   "FLUME"   "VNOTCH"  "V-NOTCH"
+new variables: "H conc", TOTP
+    add these later?
+reference numbers are absent
+averaging duplicates
+DON missing
+no record of archiving
+completely restructure files on EDI?
+
+
+QUESTIONS
+
+how to handle temporal overlap between new and existing datasets?
+
+
+PREPARATION
+
+get mirror lake data on portal
+get lost DOC files on portal
+
+make new mirror data look like the ones on EDI
+prepare lake profiles for EDI (but don't put them on portal)
+
+
+VERIFICATION
+
+make sure we have 1967-2010, 2010-2013, 2013-
+make sure we have Cl for all
+
+
+WRAPUP
+
+send all lake files to Mary
+update hbef-macrosheds-port portal with all new hbwater data
+
+
