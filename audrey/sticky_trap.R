@@ -277,88 +277,20 @@ goog = read_csv('sticky_trap/HB_WaTER_Stickytrap_mastersheet - Bugs to Upload.cs
     distinct()
 
 
-# compare combined vs individual watershed sheets ####
+# combine all candidate records and evaluate ####
 
-nrow(x_combined)
-nrow(x_individual)
+candidates = bind_rows(x_combined, x_individual, goog) %>%
+    distinct()
 
-anti_join(x_combined, x_individual) %>% dup() %>%
-    write_csv('sticky_trap/out/rows_in_sheet1_but_not_watershed_sheets.csv')
+anti_join(candidates, d) %>%
+    dup() %>%
+    arrange(watershed, date, sample_id, side_or_trapnum) %>%
+    relocate(sample_id, .before = 'side_or_trapnum') %>%
+    write_csv('sticky_trap/out/novel_records.csv')
 
-anti_join(x_individual, x_combined) %>% dup() %>%
-    write_csv('sticky_trap/out/rows_in_watershed_sheets_but_not_sheet1.csv')
-
-# compare combined dataset vs database ####
-
-nrow(x_combined)
-nrow(d)
-
-#rows present in one set and not the other
-x_comb_only = anti_join(x_combined, select(d, -sample_id))
-d_only = anti_join(select(d, -sample_id), x_combined)
-
-write_csv(x_comb_only, 'sticky_trap/out/rows_in_sheet1_but_not_database.csv')
-write_csv(d_only, 'sticky_trap/out/rows_in_database_but_not_sheet1.csv')
-
-#same, but less strict. ignoring side_or_trapnum
-x_comb_only = anti_join(x_combined, select(d, -sample_id),
-                        by = c('watershed', 'date'))
-d_only = anti_join(select(d, -sample_id), x_combined,
-                   by = c('watershed', 'date'))
-
-
-# compare individual watershed sheets vs database ####
-
-nrow(x_individual)
-nrow(d)
-
-#rows present in one set and not the other
-x_indiv_only = anti_join(x_individual, d) %>% dup()
-d_only = anti_join(d, x_individual,
-                   by = c('sample_id', 'side_or_trapnum', 'watershed', 'date'))
-
-write_csv(x_indiv_only, 'sticky_trap/out/rows_in_watershed_sheets_but_not_database.csv')
-write_csv(d_only, 'sticky_trap/out/rows_in_database_but_not_watershed_sheets.csv')
-
-#same, but less strict. ignoring side_or_trapnum
-x_indiv_only = anti_join(x_individual, d,
-                         by = c('sample_id', 'watershed', 'date'))
-d_only = anti_join(d, x_individual,
-                   by = c('sample_id', 'watershed', 'date'))
-
-#same, but joining on sample_id only
-x_indiv_only = anti_join(x_individual, d, by = 'sample_id')
-d_only = anti_join(d, x_individual, by = 'sample_id')
-
-
-# compare google mastersheet vs database ####
-
-nrow(goog)
-nrow(d)
-
-goog_only = anti_join(goog, d, by = 'sample_id')
-d_only = anti_join(d, goog, by = 'sample_id')
-
-write_csv(d_only, 'sticky_trap/out/rows_in_database_but_not_googlesheet.csv')
-
-# identify duplicates ####
-
-#from excel file tab 1 (no dupes)
-searchcols = select(x_combined, watershed, date, side_or_trapnum)
-x_combined[duplicated(searchcols) | duplicated(searchcols, fromLast = TRUE), ] %>%
-    arrange(watershed, side_or_trapnum, date)
-    # write_csv('out/dupes_from_tab1.csv')
-
-#from compiled individual tabs
-searchcols = select(x_individual, sample_id, watershed, date, side_or_trapnum)
-x_individual[duplicated(searchcols) | duplicated(searchcols, fromLast = TRUE), ] %>%
-    arrange(watershed, side_or_trapnum, date, sample_id) %>%
-    write_csv('sticky_trap/out/dupes_from_indiv_sheets.csv')
-
-#from google sheet
-searchcols = select(goog, sample_id, watershed, date, side_or_trapnum)
-goog[duplicated(searchcols) | duplicated(searchcols, fromLast = TRUE), ] %>%
-    arrange(watershed, side_or_trapnum, date, sample_id) %>%
-    write_csv('sticky_trap/out/dupes_from_gsheet.csv')
-
-
+anti_join(candidates, d,
+          by = c('sample_id', 'side_or_trapnum', 'watershed', 'date')) %>%
+    dup() %>%
+    arrange(watershed, date, sample_id, side_or_trapnum) %>%
+    relocate(sample_id, .before = 'side_or_trapnum') %>%
+    write_csv('sticky_trap/out/novel_record_indices.csv')
