@@ -44,7 +44,7 @@ fix_id = function(x){
     side_ab = grepl('^[AB]$', x$side_or_trapnum)
     replace_ = trapnum_in_id_col & ! side_ab
 
-    print(x$side_or_trapnum[trapnum_in_id_col])
+    # print(x$side_or_trapnum[trapnum_in_id_col])
 
     x$side_or_trapnum[replace_] = x$sample_id[replace_]
     x$sample_id[replace_] = NA
@@ -172,7 +172,8 @@ x4 = read_xlsx('sticky_trap/ARCHIVED_Sticky trap data Hubbard Brook.xlsx',
            watershed = sub('\\.0$', '', watershed),
            date = as.Date(as.numeric(date), origin = '1899-12-30'),
            across(ends_with(c('large', 'small')), as.numeric)) %>%
-    distinct()
+    distinct() %>%
+    fix_id()
 
 x5 = read_xlsx('sticky_trap/ARCHIVED_Sticky trap data Hubbard Brook.xlsx',
                sheet = 'Watershed 5', skip = 1, col_types = 'text') %>%
@@ -194,7 +195,8 @@ x5 = read_xlsx('sticky_trap/ARCHIVED_Sticky trap data Hubbard Brook.xlsx',
            watershed = sub('\\.0$', '', watershed),
            date = as.Date(as.numeric(date), origin = '1899-12-30'),
            across(ends_with(c('large', 'small')), as.numeric)) %>%
-    distinct()
+    distinct() %>%
+    fix_id()
 
 x6 = read_xlsx('sticky_trap/ARCHIVED_Sticky trap data Hubbard Brook.xlsx',
                sheet = 'Watershed 6', skip = 1, col_types = 'text') %>%
@@ -217,7 +219,8 @@ x6 = read_xlsx('sticky_trap/ARCHIVED_Sticky trap data Hubbard Brook.xlsx',
            date = sub("^'", '', date),
            date = as.Date(as.numeric(date), origin = '1899-12-30'),
            across(ends_with(c('large', 'small')), as.numeric)) %>%
-    distinct()
+    distinct() %>%
+    fix_id()
 
 x9 = read_xlsx('sticky_trap/ARCHIVED_Sticky trap data Hubbard Brook.xlsx',
                sheet = 'Watershed 9', skip = 1, col_types = 'text') %>%
@@ -239,7 +242,8 @@ x9 = read_xlsx('sticky_trap/ARCHIVED_Sticky trap data Hubbard Brook.xlsx',
            watershed = sub('\\.0$', '', watershed),
            date = as.Date(as.numeric(date), origin = '1899-12-30'),
            across(ends_with(c('large', 'small')), as.numeric)) %>%
-    distinct()
+    distinct() %>%
+    fix_id()
 
 xh = read_xlsx('sticky_trap/ARCHIVED_Sticky trap data Hubbard Brook.xlsx',
                sheet = 'HBK', skip = 1, col_types = 'text') %>%
@@ -261,7 +265,8 @@ xh = read_xlsx('sticky_trap/ARCHIVED_Sticky trap data Hubbard Brook.xlsx',
            watershed = sub('\\.0$', '', watershed),
            date = as.Date(as.numeric(date), origin = '1899-12-30'),
            across(ends_with(c('large', 'small')), as.numeric)) %>%
-    distinct()
+    distinct() %>%
+    fix_id()
 
 x_individual = bind_rows(x1, x2, x3, x4, x5, x6, x9, xh)
 
@@ -274,21 +279,42 @@ goog = read_csv('sticky_trap/HB_WaTER_Stickytrap_mastersheet - Bugs to Upload.cs
     mutate(date = as.Date(paste(year, month, day), format = '%Y %m %d'),
            watershed = as.character(watershed)) %>%
     select(-month, -day, -year, -`...15`) %>%
-    distinct()
+    distinct() %>%
+    fix_id()
 
 
-# combine all candidate records and evaluate ####
+# combine all candidate records; filter definitely bogus records ####
 
 candidates = bind_rows(x_combined, x_individual, goog) %>%
     distinct()
 
-anti_join(candidates, d) %>%
+#rm records with no data and no id
+check_cols = grep('date|watershed', colnames(candidates), value = TRUE, invert = TRUE)
+rm_rows = apply(candidates[check_cols], 1, function(x) all(is.na(x)))
+candidates = candidates[! rm_rows, ]
+
+# find records with issues ####
+
+id_normal1 = grepl('^ST[12][90][0-9]{4}$', candidates$sample_id) & grepl('^[AB]$', candidates$side_or_trapnum)
+candidates[!id_normal1,]
+id_normal2 = grepl('^[0-9]{1,2}$', candidates$side_or_trapnum) & is.na(candidates$sample_id)
+wshed_normal = grepl('^[1234569]$', candidates$watershed) | grepl('^HBK$', candidates$watershed)
+chill_rows = (id_normal1 | id_normal2) & wshed_normal
+
+candidates[! chill_rows, ] %>%
+    arrange(watershed, date, sample_id, side_or_trapnum) %>%
+    relocate(sample_id, .before = 'side_or_trapnum') %>%
+    write_csv('sticky_trap/out/to_investigate.csv')
+
+#find records that might be new ####
+
+anti_join(candidates[chill_rows, ], d) %>%
     dup() %>%
     arrange(watershed, date, sample_id, side_or_trapnum) %>%
     relocate(sample_id, .before = 'side_or_trapnum') %>%
     write_csv('sticky_trap/out/novel_records.csv')
 
-anti_join(candidates, d,
+anti_join(candidates[chill_rows, ], d,
           by = c('sample_id', 'side_or_trapnum', 'watershed', 'date')) %>%
     dup() %>%
     arrange(watershed, date, sample_id, side_or_trapnum) %>%
