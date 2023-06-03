@@ -4,7 +4,6 @@ library(RMariaDB)
 pass <- readLines('../../RMySQL.config')
 
 HERE: need to extract rep == 'MT' and save it in separate db table.
-also need to find out about missing timeEST and averaging by date
 
 chla <- bind_rows(read_csv('datasets_to_integrate/final data/hbwtr_chla_mgm2_2018.csv'),
                   read_csv('datasets_to_integrate/final data/hbwtr_chla_mgm2_2019.csv'),
