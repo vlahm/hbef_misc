@@ -1,6 +1,9 @@
 library(tidyverse)
 library(RMariaDB)
 
+options(readr.show_progress = FALSE,
+        readr.show_col_types = FALSE)
+
 pass <- readLines('../../RMySQL.config')
 
 all_f <- c(list.files('datasets_to_integrate/HOBO data/2018', pattern = '\\.csv$', full.names = TRUE),
@@ -32,7 +35,8 @@ for(f in all_f){
 
 light <- light %>%
     distinct() %>%
-    arrange(site, datetime, location)
+    arrange(site, datetime, location) %>%
+    rename(light_lux = lux)
 
 con <- dbConnect(MariaDB(),
                  user = 'root',
@@ -40,6 +44,12 @@ con <- dbConnect(MariaDB(),
                  host = 'localhost',
                  dbname = 'hbef')
 
-dbWriteTable(con, 'sensor5_light', light, overwrite = TRUE, row.names = FALSE)
+if('sensor5_light' %in% dbListTables(con)){
+    warning('table sensor5_light already exists. doing nothing')
+} else {
+    dbExecute(con, 'create table sensor5_light (id int(11) auto_increment, site varchar(8), datetime datetime, location varchar(4), light_lux double, primary key(id));')
+    dbWriteTable(con, 'sensor5_light', light, append = TRUE, row.names = FALSE)
+}
+
 dbDisconnect(con)
 

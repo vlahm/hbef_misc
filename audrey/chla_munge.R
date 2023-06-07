@@ -42,5 +42,8 @@ curr_ <- curr %>%
     left_join(chla_with_time, by = c('date', 'site', 'timeEST', 'matchcol')) %>%
     select(-matchcol)
 
-dbWriteTable(con, 'current', curr_, overwrite = TRUE, row.names = FALSE)
+stop('this script is disabled to be safe, as it was only intended to be run once')
+
+dbExecute(con, 'delete from current;')
+dbWriteTable(con, 'current', curr_, append = TRUE, row.names = FALSE)
 dbDisconnect(con)
