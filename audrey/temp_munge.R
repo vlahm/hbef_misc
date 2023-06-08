@@ -122,7 +122,7 @@ d = distinct(d)
 if(any(duplicated(select(d, datetime, site)))) stop('oi!')
 
 d = d %>%
-    select(watershedID = site, datetime, S4__TempC = temp) %>%
+    select(watershedID = site, datetime, tempC_new = temp) %>%
     arrange(site, datetime)
 
 con <- dbConnect(MariaDB(),
@@ -131,19 +131,17 @@ con <- dbConnect(MariaDB(),
                  host = 'localhost',
                  dbname = 'hbef')
 
-# if('sensor6_temp' %in% dbListTables(con)){
-#     warning('table sensor6_temp already exists. doing nothing')
-# } else {
-#     dbExecute(con, 'create table sensor6_temp (id int(11) auto_increment, site varchar(8), datetime datetime, temp_C double, primary key(id));')
-#     dbWriteTable(con, 'sensor6_temp', d, append = TRUE, row.names = FALSE)
-# }
-dbWriteTable(con, 'sensor4', d, append = TRUE, row.names = FALSE)
+stop('the database editing portion of this script is disabled to be safe, as it was only intended to be run once')
 
-dbDisconnect(con)
-
-###
 dd <- DBI::dbReadTable(con, 'sensor4') %>%
-    as_tibble()
+    as_tibble() %>%
+    rename(tempC_old = S4__TempC) %>%
+    select(-id)
 
-HERE: APPENDED TO TABLE SENSOR4, BUT DUPLICATED SOME TIMESTAMPS THAT WAY.
-FIND A WAY TO MERGE NEW TEMP DATA WITHOUT MESSING UP THE TABLE
+dd = full_join(d, dd, by = c('datetime', 'watershedID')) %>%
+    mutate(S4__TempC = if_else(! is.na(tempC_new), tempC_new, tempC_old)) %>%
+    select(-tempC_new, -tempC_old)
+
+dbExecute(con, 'delete from sensor4;')
+dbWriteTable(con, 'sensor4', dd, append = TRUE, row.names = FALSE)
+dbDisconnect(con)
