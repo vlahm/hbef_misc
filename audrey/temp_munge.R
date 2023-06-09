@@ -32,7 +32,7 @@ read_templogger = function(d, files){
         }
 
         accum = d_ %>%
-            mutate(datetime = as.POSIXct(`Time (sec)`)) %>%
+            mutate(datetime = as.POSIXct(`Time (sec)`, tz = 'UTC', origin = '1970-01-01')) %>%
             select(datetime, temp = `T (deg C)`) %>%
             mutate(site = ws_id) %>%
             bind_rows(accum)
@@ -123,7 +123,8 @@ if(any(duplicated(select(d, datetime, site)))) stop('oi!')
 
 d = d %>%
     select(watershedID = site, datetime, tempC_new = temp) %>%
-    arrange(site, datetime)
+    arrange(watershedID, datetime) %>%
+    mutate(watershedID = as.integer(substr(watershedID, 2, 2)))
 
 con <- dbConnect(MariaDB(),
                  user = 'root',

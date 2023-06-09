@@ -27,7 +27,10 @@ for(f in all_f){
     light <- read_csv('datasets_to_integrate/HOBO data/2021/W1_weir_2021.csv', skip = 1) %>%
         select(datetime = 'Date Time, GMT-04:00',
                lux = 'Intensity, Lux (LGR S/N: 20203506, SEN S/N: 20203506)') %>%
-        mutate(datetime = as.POSIXct(datetime, format = '%m/%d/%y %I:%M:%S %p'),
+        mutate(datetime = as.POSIXct(datetime, format = '%m/%d/%y %I:%M:%S %p',
+                                     # origin = '1970-01-01', tz = 'Etc/GMT-4'),
+                                     # it's actually in GMT-4, but mysql converts to UTC, so this eliminates need to convert twice
+                                     origin = '1970-01-01', tz = 'UTC'),
                site = !!site,
                location = !!location) %>%
         bind_rows(light)
