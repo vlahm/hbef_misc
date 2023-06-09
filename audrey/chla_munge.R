@@ -1,6 +1,10 @@
 library(tidyverse)
 library(RMariaDB)
 
+options(readr.show_progress = FALSE,
+        readr.show_col_types = FALSE)
+
+setwd('~/hbef_misc/audrey')
 pass <- readLines('../../RMySQL.config')
 
 chla <- bind_rows(read_csv('datasets_to_integrate/final data/hbwtr_chla_mgm2_2018.csv'),
