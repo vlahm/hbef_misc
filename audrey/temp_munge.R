@@ -4,6 +4,8 @@ library(RMariaDB)
 options(readr.show_progress = FALSE,
         readr.show_col_types = FALSE)
 
+setwd('~/hbef_misc/audrey')
+
 #setup and helpers ####
 
 pass <- readLines('../../RMySQL.config')
@@ -131,7 +133,7 @@ con <- dbConnect(MariaDB(),
                  host = 'localhost',
                  dbname = 'hbef')
 
-stop('the database editing portion of this script is disabled to be safe, as it was only intended to be run once')
+#stop('the database editing portion of this script is disabled to be safe, as it was only intended to be run once')
 
 dd <- DBI::dbReadTable(con, 'sensor4') %>%
     as_tibble() %>%
