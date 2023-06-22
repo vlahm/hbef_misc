@@ -7,15 +7,24 @@ library(readxl)
 setwd('~/git/hbef/hbef_misc/temperature_maxima_plots/')
 
 d = read_csv('HBEFdata_All_2023-06-21.csv') %>%
-    select(site, date, temp)
+    select(site, date, temp) %>%
+    filter(! (site == 'HBK' & year(date) == 1973))
 
 d = readxl::read_xlsx('../lake_data_etc/data/ml70chem 1967_2014.xlsx', skip = 1) %>%
     mutate(site = 'ML70',
            date = as.Date(paste0(yr, '-01-01'))) %>%
     select(site, date, temp = `Temp °C`) %>%
-    filter(temp > -100) %>%
+    filter(temp > -100, year(date) != 1976) %>%
     bind_rows(d) %>%
     arrange(site, date)
+
+#check annual coverage for W6 and HBK
+d %>%
+    filter(site %in% c('W6', 'HBK')) %>%
+    group_by(site, year(date)) %>%
+    summarize(min = min(month(date)),
+              max = max(month(date))) %>%
+    print(n=200)
 
 ylims = d %>%
     filter(site %in% c('HBK', 'W6', 'ML70'),
