@@ -1,5 +1,13 @@
 library(tidyverse)
 library(readxl)
+library(RMariaDB)
+
+# setup ####
+options(readr.show_progress = FALSE,
+        readr.show_col_types = FALSE)
+
+setwd('~/hbef_misc/audrey')
+pass <- readLines('../../RMySQL.config')
 
 dup = function(x, rearrange = TRUE){
 
@@ -220,7 +228,9 @@ x6 = read_xlsx('sticky_trap/ARCHIVED_Sticky trap data Hubbard Brook.xlsx',
            date = as.Date(as.numeric(date), origin = '1899-12-30'),
            across(ends_with(c('large', 'small')), as.numeric)) %>%
     distinct() %>%
-    fix_id()
+    fix_id() %>%
+    filter(! date == as.Date('109-04-01')) %>%
+    filter(! date == as.Date('109-03-31'))
 
 x9 = read_xlsx('sticky_trap/ARCHIVED_Sticky trap data Hubbard Brook.xlsx',
                sheet = 'Watershed 9', skip = 1, col_types = 'text') %>%
@@ -320,3 +330,29 @@ anti_join(candidates[chill_rows, ], d,
     arrange(watershed, date, sample_id, side_or_trapnum) %>%
     relocate(sample_id, .before = 'side_or_trapnum') %>%
     write_csv('sticky_trap/out/novel_record_indices.csv')
+
+#insert new records into database ####
+
+new_records = anti_join(candidates[chill_rows, ], d) %>%
+          # by = c('sample_id', 'side_or_trapnum', 'watershed', 'date')) %>%
+    dup() %>%
+    arrange(watershed, date, sample_id, side_or_trapnum) %>%
+    relocate(sample_id, .before = 'side_or_trapnum') %>%
+    filter(dup == 1 & if_any(ends_with(c('large', 'small')), ~! is.na(.)) | dup == 0) %>%
+    filter(! (side_or_trapnum == 2 & watershed == 1 & date == as.Date('2018-06-18') & is.na(caddisfly_small))) %>%
+    filter(! (side_or_trapnum == 3 & watershed == 1 & date == as.Date('2018-10-01') & is.na(caddisfly_small))) %>%
+    filter(! (side_or_trapnum == 7 & watershed == 1 & date == as.Date('2018-10-01') & is.na(caddisfly_small))) %>%
+    select(-dup)
+
+stickytrap = bind_rows(d, new_records) %>%
+    arrange(watershed, date, sample_id, side_or_trapnum)
+
+con <- dbConnect(MariaDB(),
+                 user = 'root',
+                 password = pass,
+                 host = 'localhost',
+                 dbname = 'hbef')
+
+dbExecute(con, 'delete from stickytrap;')
+dbWriteTable(con, 'stickytrap', stickytrap, append = TRUE, row.names = FALSE)
+dbDisconnect(con)
