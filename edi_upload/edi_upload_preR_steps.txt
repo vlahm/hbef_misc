@@ -3,26 +3,26 @@ lines that are merely informative have a leading "#" below, as if they were code
 this is used once per year, when we update the hubbard brook data on the EDI portal
 
 ATTENTION: you'll need to manually update some of the dates before using the code snippets below. 
-wateryears are apparently named for their starts, not ends, at hbef. so wateryear 2019 starts on may 31 2019 and ends on june1 2020
+wateryears are apparently named for their starts, not ends, at hbef. so wateryear 2019 starts on june 1 2019 and ends on may 31 2020
 
 ---
 
 
 #GENERATE WEEKLY STREAM FILES (MYSQL)
 
-select * from current where date < '2021-06-01' and site in ('W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W101', 'HBK', 'ML70') order by date into outfile '/var/lib/mysql-files/HubbardBrook_weekly_stream_chemistry_curr.csv' fields terminated by ',' enclosed by '"' lines terminated by '\n';
+select * from current where date < '2022-06-01' and site in ('W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W101', 'HBK', 'ML70') order by date into outfile '/var/lib/mysql-files/HubbardBrook_weekly_stream_chemistry_curr.csv' fields terminated by ',' enclosed by '"' lines terminated by '\n';
 
-select * from historical where date < '2021-06-01' and site in ('W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W101', 'HBK', 'ML70') order by date into outfile '/var/lib/mysql-files/HubbardBrook_weekly_stream_chemistry_hist.csv' fields terminated by ',' enclosed by '"' lines terminated by '\n';
+select * from historical where date < '2022-06-01' and site in ('W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W101', 'HBK', 'ML70') order by date into outfile '/var/lib/mysql-files/HubbardBrook_weekly_stream_chemistry_hist.csv' fields terminated by ',' enclosed by '"' lines terminated by '\n';
 
 
 #GENERATE WEEKLY PRECIP FILES (MYSQL)
 
-select * from current where date < '2021-06-01' and site not in ('W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W101', 'HBK', 'ML70', 'W7-Precip', 'N', 'S') order by date into outfile '/var/lib/mysql-files/HubbardBrook_weekly_precipitation_chemistry_curr.csv' fields terminated by ',' enclosed by '"' lines terminated by '\n';
+select * from current where date < '2022-06-01' and site not in ('W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W101', 'HBK', 'ML70', 'W7-Precip', 'N', 'S') order by date into outfile '/var/lib/mysql-files/HubbardBrook_weekly_precipitation_chemistry_curr.csv' fields terminated by ',' enclosed by '"' lines terminated by '\n';
 
-select * from historical where date < '2021-06-01' and site not in ('W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W101', 'HBK', 'ML70', 'W7-Precip') order by date into outfile '/var/lib/mysql-files/HubbardBrook_weekly_precipitation_chemistry_hist.csv' fields terminated by ',' enclosed by '"' lines terminated by '\n';
+select * from historical where date < '2022-06-01' and site not in ('W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W101', 'HBK', 'ML70', 'W7-Precip') order by date into outfile '/var/lib/mysql-files/HubbardBrook_weekly_precipitation_chemistry_hist.csv' fields terminated by ',' enclosed by '"' lines terminated by '\n';
 
 
-#GET AND FORMAT HEADER ROWS (MYSQL; THIS SHOULDN'T HAVE CHANGED, SO THIS SECTION SHOULD BE SKIPPABLE)
+#GET AND FORMAT HEADER ROWS (MYSQL; THIS SECTION SHOULD BE SKIPPABLE)
 
 SELECT group_concat(column_name) FROM information_schema.columns WHERE table_schema = 'hbef' AND table_name = 'current';
 
@@ -39,11 +39,11 @@ gsub(',', '", "',
 
 cd /var/lib/mysql-files
 
-sed -i 1i'"refNo", "site", "date", "timeEST", "pH", "pHmetrohm", "DIC", "spCond", "temp", "ANC960", "ANCMet", "gageHt", "hydroGraph", "flowGageHt", "precipCatch", "fieldCode", "notes", "archived", "uniqueID", "waterYr", "datetime", "Ca", "Mg", "K", "Na", "TMAl", "OMAl", "Al_ICP", "NH4", "SO4", "NO3", "Cl", "PO4", "DOC", "TDN", "DON", "SiO2", "Mn", "Fe", "F", "cationCharge", "anionCharge", "theoryCond", "ionError", "duplicate", "sampleType", "ionBalance"' HubbardBrook_weekly_stream_chemistry_curr.csv
+sed -i 1i'"refNo", "site", "date", "timeEST", "pH", "pHmetrohm", "DIC", "spCond", "temp", "ANC960", "ANCMet", "gageHt", "hydroGraph", "flowGageHt", "precipCatch", "fieldCode", "notes", "archived", "uniqueID", "waterYr", "datetime", "Ca", "Mg", "K", "Na", "TMAl", "OMAl", "Al_ICP", "NH4", "SO4", "NO3", "Cl", "PO4", "DOC", "TDN", "DON", "SiO2", "Mn", "Fe", "F", "cationCharge", "anionCharge", "theoryCond", "ionError", "duplicate", "sampleType", "ionBalance", "chla_M", "chla_T", "chla_MT", "chla_WM"' HubbardBrook_weekly_stream_chemistry_curr.csv
 
 sed -i 1i'"refNo", "site", "date", "timeEST", "pH", "DIC", "spCond", "temp", "ANC960", "ANCMet", "gageHt", "hydroGraph", "flowGageHt", "precipCatch", "fieldCode", "notes", "uniqueID", "waterYr", "datetime", "Ca", "Mg", "K", "Na", "TMAl", "OMAl", "Al_ICP", "Al_ferron", "NH4", "SO4", "NO3", "Cl", "PO4", "DOC", "TDN", "DON", "SiO2", "Mn", "Fe", "F", "cationCharge", "anionCharge", "theoryCond", "ionError", "duplicate", "sampleType", "ionBalance", "canonical"' HubbardBrook_weekly_stream_chemistry_hist.csv
 
-sed -i 1i'"refNo", "site", "date", "timeEST", "pH", "pHmetrohm", "DIC", "spCond", "temp", "ANC960", "ANCMet", "gageHt", "hydroGraph", "flowGageHt", "precipCatch", "fieldCode", "notes", "archived", "uniqueID", "waterYr", "datetime", "Ca", "Mg", "K", "Na", "TMAl", "OMAl", "Al_ICP", "NH4", "SO4", "NO3", "Cl", "PO4", "DOC", "TDN", "DON", "SiO2", "Mn", "Fe", "F", "cationCharge", "anionCharge", "theoryCond", "ionError", "duplicate", "sampleType", "ionBalance"' HubbardBrook_weekly_precipitation_chemistry_curr.csv
+sed -i 1i'"refNo", "site", "date", "timeEST", "pH", "pHmetrohm", "DIC", "spCond", "temp", "ANC960", "ANCMet", "gageHt", "hydroGraph", "flowGageHt", "precipCatch", "fieldCode", "notes", "archived", "uniqueID", "waterYr", "datetime", "Ca", "Mg", "K", "Na", "TMAl", "OMAl", "Al_ICP", "NH4", "SO4", "NO3", "Cl", "PO4", "DOC", "TDN", "DON", "SiO2", "Mn", "Fe", "F", "cationCharge", "anionCharge", "theoryCond", "ionError", "duplicate", "sampleType", "ionBalance", "chla_M", "chla_T", "chla_MT", "chla_WM"' HubbardBrook_weekly_precipitation_chemistry_curr.csv
 
 sed -i 1i'"refNo", "site", "date", "timeEST", "pH", "DIC", "spCond", "temp", "ANC960", "ANCMet", "gageHt", "hydroGraph", "flowGageHt", "precipCatch", "fieldCode", "notes", "uniqueID", "waterYr", "datetime", "Ca", "Mg", "K", "Na", "TMAl", "OMAl", "Al_ICP", "Al_ferron", "NH4", "SO4", "NO3", "Cl", "PO4", "DOC", "TDN", "DON", "SiO2", "Mn", "Fe", "F", "cationCharge", "anionCharge", "theoryCond", "ionError", "duplicate", "sampleType", "ionBalance", "canonical"' HubbardBrook_weekly_precipitation_chemistry_hist.csv
 

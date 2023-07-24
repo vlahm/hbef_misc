@@ -35,7 +35,8 @@ get_unambiguous_barcodes <- function(zz, dd, allow_differing_times = TRUE){
     dd_same_datetime = dd[duplicated(ddsub) | duplicated(ddsub, fromLast = TRUE), ] %>%
         arrange(site, date)
 
-    zz_unambiguous = left_join(zz, ddsub, by = cols) %>%
+    zz_unambiguous = left_join(zz, ddsub, by = cols,
+                               relationship = 'many-to-many') %>%
         anti_join(zz_same_datetime, by = cols) %>%
         anti_join(dd_same_datetime, by = cols)
 
@@ -46,7 +47,7 @@ args = commandArgs(trailingOnly=TRUE)[1]
 # args = '/home/mike/git/hbef/hbef_misc/edi_upload'
 wd = args[1]
 
-stop('have we decided how to deal with duplicate archive and/or field records?')
+#stop('have we decided how to deal with duplicate archive and/or field records?')
 arch = read_csv(file.path(wd, 'archive_samples.csv'),
                 col_types = cols(.default = 'c')) %>%
     select(site, site_type, date, timeEST, barcode)
@@ -64,6 +65,7 @@ pc = read.csv(file.path(wd, 'HubbardBrook_weekly_precipitation_chemistry_curr.cs
               stringsAsFactors = FALSE,
               colClasses = 'character') %>%
     as_tibble() %>%
+    select(-starts_with('chla_')) %>%
     mutate(date = as.Date(date)) %>%
     filter(date >= as.Date('2013-06-01')) %>%
     mutate(date = as.character(date))
