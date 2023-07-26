@@ -164,6 +164,32 @@ s = s %>%
 
 # gsub('\\t', ', ', strng)
 
+# conform field codes ####
+
+# sort(union(unique(s$fieldCode), unique(p$fieldCode)))
+
+field_code_handler <- function(d){
+
+    d$fieldCode[d$fieldCode == '2 wk catch'] <- '922'
+    d$fieldCode[d$fieldCode == 'hi flow'] <- '911'
+    d$fieldCode[d$fieldCode == '9690'] <- '969'
+
+    double_codes <- grepl('[0-9]{2,3}[ /][0-9]{2,3}', d$fieldCode)
+
+    d$fieldCode[! double_codes] <- sub('^([0-9]+).*', '\\1', d$fieldCode[! double_codes])
+
+    d$fieldCode <- sub('/', ' ', d$fieldCode)
+
+    d <- filter(d, is.na(fieldCode) | fieldCode != '999')
+
+    cat('resulting codes\n\t', paste(unique(d$fieldCode), collapse = ', '))
+
+    return(d)
+}
+
+s = field_code_handler(s)
+p = field_code_handler(p)
+
 # out ####
 
 p$datetime = NULL
