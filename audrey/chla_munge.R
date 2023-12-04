@@ -4,21 +4,28 @@ library(RMariaDB)
 options(readr.show_progress = FALSE,
         readr.show_col_types = FALSE)
 
+# setwd('~/git/hbef/hbef_misc/audrey')
 setwd('~/hbef_misc/audrey')
 pass <- readLines('../../RMySQL.config')
 
-chla <- bind_rows(read_csv('datasets_to_integrate/final data/hbwtr_chla_mgm2_2018.csv'),
-                  read_csv('datasets_to_integrate/final data/hbwtr_chla_mgm2_2019.csv'),
-                  read_csv('datasets_to_integrate/final data/hbwtr_chla_mgm2_2020.csv'))
+chla <- map_dfr(list.files('datasets_to_integrate/final data',
+                           pattern = 'chla_mgm2_[0-9]{4}\\.csv',
+                           full.names = TRUE),
+                read_csv)
 
 #handle known duplicates
+dup_ids1 = c("CH200581", "CH200582", "CH200583", "CH200584", "CH200586", "CH200585", "CH200587")
+chla[chla$SampleID %in% dup_ids1, 'DATE'] = as.Date('2020-09-21')
+dup_ids2 = c("CH220154")
+chla[chla$SampleID %in% dup_ids2, 'DATE'] = as.Date('2022-06-20')
+
 if(any(duplicated(select(chla, DATE, `WEIR-REP`)))){
     ids = chla[duplicated(select(chla, DATE, `WEIR-REP`)), 'SampleID', drop = TRUE]
-    if(setequal(ids, c("CH200581", "CH200582", "CH200583", "CH200584", "CH200586", "CH200585", "CH200587"))){
-        chla[chla$SampleID %in% ids, 'DATE'] = as.Date('2020-09-21')
-    } else {
-        stop('unhandled duplicates detected')
-    }
+    # ddup = select(chla, DATE, `WEIR-REP`)
+    # dups <- chla[duplicated(ddup) | duplicated(ddup, fromLast = TRUE), ] %>%
+    #     arrange(DATE, `WEIR-REP`)
+
+    if(length(ids)) stop('unhandled duplicates detected')
 }
 
 warning('currently removing rep == "WM-zero" because there are only 7 such records (2023-06-08)')
@@ -29,22 +36,17 @@ chla = chla %>%
     pivot_wider(names_from = rep, values_from = chla,
                 names_prefix = 'chla_')
 
-stop('the database editing portion of this script is disabled to be safe, as it was only intended to be run once')
-
 con <- dbConnect(MariaDB(),
                  user = 'root',
                  password = pass,
                  host = 'localhost',
                  dbname = 'hbef')
 
-# dbExecute(con, 'create table chla (id int(8) auto_increment, site varchar(8), date date, chla double, rep varchar(18), primary key(id));')
-# dbWriteTable(con, 'chla', chla, append = TRUE, row.names = FALSE)
-# dbDisconnect(con)
-
-dbExecute(con, 'alter table current add column chla_M decimal(8,4);')
-dbExecute(con, 'alter table current add column chla_T decimal(8,4);')
-dbExecute(con, 'alter table current add column chla_MT decimal(8,4);')
-dbExecute(con, 'alter table current add column chla_WM decimal(8,4);')
+# #first time only
+# dbExecute(con, 'alter table current add column chla_M decimal(8,4);')
+# dbExecute(con, 'alter table current add column chla_T decimal(8,4);')
+# dbExecute(con, 'alter table current add column chla_MT decimal(8,4);')
+# dbExecute(con, 'alter table current add column chla_WM decimal(8,4);')
 
 curr <- DBI::dbReadTable(con, 'current') %>%
     as_tibble()
@@ -67,6 +69,9 @@ curr_ <- curr %>%
     left_join(chla_with_time, by = c('date', 'site', 'timeEST', 'matchcol')) %>%
     select(-matchcol)
 
+# compare::compare(curr_, curr)
+
 dbExecute(con, 'delete from current;')
 dbWriteTable(con, 'current', curr_, append = TRUE, row.names = FALSE)
 dbDisconnect(con)
+
