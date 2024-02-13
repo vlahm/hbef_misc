@@ -1,4 +1,8 @@
-#for uploading hbef stuff to edi (also see .../hbef/edi_upload_preR_steps.txt)
+#for uploading hbef stuff to edi
+#   start with .../hbef/edi_upload_preR_steps.txt
+#   then run this from command line with `Rscript edi_upload_prep.R /path`
+#   where /path is the path to the directory containing HubbardBrook_weekly_stream_chemistry.csv, etc.
+#   you can also use "Rscript edi_upload_prep.R `realpath .`", where the backticks are actually part of the command but the quotes are not, assuming this script is in the same folder as those files
 
 library(tidyverse)
 
@@ -43,7 +47,10 @@ get_unambiguous_barcodes <- function(zz, dd, allow_differing_times = TRUE){
     return(zz_unambiguous)
 }
 
-args = commandArgs(trailingOnly=TRUE)[1]
+# args = commandArgs(trailingOnly=TRUE)[1]
+args = commandArgs(trailingOnly=T)
+print(args)
+stop()
 # args = '/home/mike/git/hbef/hbef_misc/edi_upload'
 wd = args[1]
 
