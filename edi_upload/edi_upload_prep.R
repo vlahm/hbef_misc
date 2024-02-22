@@ -49,8 +49,6 @@ get_unambiguous_barcodes <- function(zz, dd, allow_differing_times = TRUE){
 
 # args = commandArgs(trailingOnly=TRUE)[1]
 args = commandArgs(trailingOnly=T)
-print(args)
-stop()
 # args = '/home/mike/git/hbef/hbef_misc/edi_upload'
 wd = args[1]
 
@@ -198,6 +196,25 @@ s = field_code_handler(s)
 p = field_code_handler(p)
 
 # out ####
+
+#handle encoding errors and replace non-ascii symbols
+p$notes = iconv(p$notes, "windows-1252", "UTF-8")
+s$notes = iconv(s$notes, "windows-1252", "UTF-8")
+
+replace_non_ascii <- function(zz){
+
+    zz = gsub('°', 'F', zz, fixed = TRUE)
+    zz = gsub('’', "'", zz, fixed = TRUE)
+    zz = gsub('“|”', '"', zz, fixed = TRUE)
+
+    non_asciis_remain = any(sapply(zz, function(x) any(charToRaw(x) > 127)))
+    if(non_asciis_remain) stop('non-ascii characters remain. need new handlers')
+
+    return(zz)
+}
+
+p$notes <- replace_non_ascii(p$notes)
+s$notes <- replace_non_ascii(s$notes)
 
 p$datetime = NULL
 s$datetime = NULL
