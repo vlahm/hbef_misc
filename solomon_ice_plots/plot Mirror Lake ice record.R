@@ -7,16 +7,11 @@ library(ggplot2)
 
 #---- Load and manipulate data ----
 
-#Read data, simplify to one ice-on and one ice-off per year
 d <- read.csv('iceDataMirrorLake.csv') %>% 
-  as_tibble() %>% #just easier to absorb when printing
-  group_by(waterYear) %>% 
+  as_tibble() %>%
   mutate(iceInDate = as.Date(iceInDate),
-         iceOutDate = as.Date(iceOutDate)) %>% 
-  summarize(iceInDate = min(iceInDate),
-            iceOutDate = max(iceOutDate, na.rm = FALSE),
-            .groups = 'drop')
-  
+         iceOutDate = as.Date(iceOutDate))
+
 #Examine structure of data
 head(d)
 str(d)
@@ -53,23 +48,26 @@ str(d)
 #Write out a new version of the .csv for recording data moving forward
 #write.csv(cbind(select(d,waterYear,iceInDate,iceOutDate),comments=NA),file='new file to record data/iceDataMirrorLake.csv',row.names=FALSE)
 
-#Add columns for DOWY (day of water year)
+#Add columns for DOWY (day of water year), accounting for leap days
 
 hbef_dowy_mapper <- function(date){
   
   if(is.na(date)) return(NA_Date_)
   
+  is_leap_year <- leap_year(date)
   doy <- yday(date)
   
-  if(doy >= 152){ #after june 1 (non leap year)
-    dowy <- doy - 151
+  june1 <- ifelse(is_leap_year, 153, 152)
+
+  if(doy >= june1){
+    dowy <- doy - june1 + 1
   } else {
     dowy <- doy + 214
   }
   
   return(dowy)
 }
-  
+
 # d$iceInDOY <- yday(d$iceInDate)
 # d$iceOutDOY <- yday(d$iceOutDate)
 d$iceInDOWY <- sapply(d$iceInDate, hbef_dowy_mapper)
@@ -85,18 +83,26 @@ yrange <- range(select(d, ends_with('DOWY')), na.rm = TRUE)
 month_starts <- seq(as.Date('1999-01-01'), as.Date('1999-12-31'), by = 'month')
 yaxis <- sapply(month_starts, hbef_dowy_mapper)
 
+d_simplified <- d %>% 
+  group_by(waterYear) %>% 
+  summarize(iceInDate = min(iceInDate),
+            iceOutDate = max(iceOutDate, na.rm = FALSE),
+            iceInDOWY = min(iceInDOWY),
+            iceOutDOWY = max(iceOutDOWY, na.rm = FALSE),
+            .groups = 'drop')
+
 jpeg('Mirror Lake ice record.jpg',width=6,height=6,units='in',res=200,quality=90)
 
 par(mar = c(4, 4, 1, 5))
 
-plot(d$waterYear, d$iceOutDOWY,
+plot(d_simplified$waterYear, d_simplified$iceOutDOWY,
      col = 'red', pch = 19,
      ylim = rev(yrange),
      xlab = 'Water Year', ylab = 'Month', main = '',
      yaxt = 'n')
-points(d$waterYear, d$iceInDOWY, col = 'blue', pch = 19)
+points(d_simplified$waterYear, d_simplified$iceInDOWY, col = 'blue', pch = 19)
 axis(2, at = yaxis, labels = month.abb, las = 1)
-legend(x = max(d$waterYear) + 2, y = mean(yrange),
+legend(x = max(d_simplified$waterYear) + 2, y = mean(yrange),
        legend = c('ice in', 'ice out'),
        col = c('blue', 'red'),
        pch = 19, xpd = NA, bty = 'n')
@@ -107,8 +113,7 @@ dev.off()
 
 jpeg('mirror_lake_ice_record_periods.jpg',width=6,height=6,units='in',res=200,quality=90)
 
-boxplot_stats <- fivenum(c(d$iceOutDOWY, d$iceInDOWY), na.rm = TRUE)
-boxplot_xloc <- max(d$waterYear) + 1
+point_style <- 21 #19
 
 par(mar = c(4, 4, 1, 5))
 
@@ -118,20 +123,13 @@ plot(d$waterYear, d$iceOutDOWY,
      xlab = 'Water Year', ylab = 'Month', main = '',
      yaxt = 'n')
 segments(d$waterYear, d$iceOutDOWY, d$waterYear, d$iceInDOWY, col = 'gray50')
-points(d$waterYear, d$iceOutDOWY, col = 'red', pch = 19)
-points(d$waterYear, d$iceInDOWY, col = 'blue', pch = 19)
-# points(boxplot_xloc,
-#        boxplot_stats[3],
-#        col = 'purple', pch = 19)
-# segments(boxplot_xloc, boxplot_stats[1], boxplot_xloc, boxplot_stats[2],
-#          col = 'purple')
-# segments(boxplot_xloc, boxplot_stats[4], boxplot_xloc, boxplot_stats[5],
-#          col = 'purple')
+points(d$waterYear, d$iceOutDOWY, col = 'red', pch = point_style)
+points(d$waterYear, d$iceInDOWY, col = 'blue', pch = point_style)
 axis(2, at = yaxis, labels = month.abb, las = 1)
 legend(x = max(d$waterYear) + 2, y = mean(yrange),
        legend = c('ice in', 'ice out'),
        col = c('blue', 'red'),
-       pch = 19, xpd = NA, bty = 'n')
+       pch = point_style, xpd = NA, bty = 'n')
 
 dev.off()
 
