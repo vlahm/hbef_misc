@@ -72,3 +72,7 @@ d %>%
          color = 'Trend') +
     theme(axis.title = element_text(size = 14),
           axis.text = element_text(size = 12))
+
+#save plot to location of choice. to change the filetype, just change the extension.
+ggsave('/tmp/pH_trends.png', dpi = 600, width = 10, height = 10)
+
