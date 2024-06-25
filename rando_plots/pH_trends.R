@@ -1,4 +1,5 @@
 library(ggplot2)
+library(ggthemes)
 library(readxl)
 library(tidyverse)
 library(broom) # offers clean ways to parse model objects
@@ -65,7 +66,7 @@ d %>%
                                   'Hubbard W6' = 'skyblue'),
                        name = '') +
     guides(colour = guide_legend(reverse = TRUE)) + # easier than custom-specifying legend element order in this case
-    theme_minimal() +
+    theme_few() +
     labs(title = 'Significant Linear Trends in pH (\u03B1 = 0.05)',
          x = '',
          y = 'pH',
