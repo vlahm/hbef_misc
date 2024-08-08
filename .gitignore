@@ -3,7 +3,6 @@ historical_data_update/out/
 *.png
 *.rda
 .Rproj.user
-*.Rproj
 lake_data_etc/data/oldv_verify/
 lake_data_etc/data/HBEFdata_All_2023-03-21.csv
 audrey/datasets_to_integrate
