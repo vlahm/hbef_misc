@@ -207,7 +207,7 @@ fig1d <- vs1 %>%
     filter(site == !!site) %>%
     arrange(year)
 
-write_csv(fig1d, 'data_out/fig1.csv')
+write_csv(fig1d, paste0('data_out/fig1_', site, '.csv'))
 
 fig1d %>%
     ggplot(aes(x = SO4_NO3, y = base_cat, color = year)) +
@@ -240,7 +240,7 @@ fig1d %>%
     scale_x_continuous(limits = c(0, 200),
                        expand = c(0, 0))
 
-ggsave('figs/fig1.png', width = 6, height = 5)
+ggsave(paste0('figs/fig1_', site, '.png'), width = 6, height = 5)
 
 
 ## 4. fig 2 (EC) ####
