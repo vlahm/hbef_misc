@@ -1,48 +1,426 @@
-library(data.table)
+#2024-08-07
+#latest EDI data versions (retrieved in section 1 below):
+#   stream/precip chemistry vsn 11
+#   discharge vsn 17
+#   precip vsn 22
+
+#open this file via likens_and_buso_remake.Rproj to set paths
+#start by collapsing code sections with Alt+o (Linux, Windows) or Cmd+Opt+o (Mac)
+
 library(tidyverse)
 library(lubridate)
 library(ggplot2)
-library(feather)
+library(ggthemes)   #for ggthemes::theme_few
+library(RCurl)      #for acquiring data download URLs
+library(tidyr)      #for tidyr::complete (row completion)
+library(macrosheds) #for unit conversion
+library(patchwork)  #for composite plots
 
-source('helpers.R')
+source('src/helpers.R')
 
-## load data ####
+#run variables (set these to your liking)
+cutoff_s <- 10 #number of stream samples per water-year to require (NULL to ignore)
+cutoff_p <- NULL #same, but for precip samples
+site <- 'W6' #W1-9 are available. affects Figs 1-5
+bad_codes <- c(955, 969, 970) #remove contaminated/questionable samples
+# bad_codes <- c(955, 969, 970, 912, 911, 319) #remove storm/low flow samples too
+# bad_codes <- c() #don't remove any samples
 
-s <- read_csv('data/HubbardBrook_weekly_stream_chemistry.csv')
-p <- read_csv('data/HubbardBrook_weekly_precipitation_chemistry.csv',
-              guess_max = 10000) %>%
-    select(-all_of(c('barcode', 'fieldCode', 'notes', 'uniqueID', 'duplicate',
-                   'sampleType', 'canonical', 'site'))) %>%
-    group_by(date, timeEST) %>%
+## 1. setup folders; download data ####
+
+dir.create('data_in', showWarnings = FALSE)
+dir.create('data_out', showWarnings = FALSE)
+dir.create('figs', showWarnings = FALSE)
+
+chem_urls <- get_edi_url(prodcode = 208, version = 11)
+discharge_urls <- get_edi_url(prodcode = 1, version = 17)
+precip_urls <- get_edi_url(prodcode = 13, version = 22)
+all_urls <- bind_rows(chem_urls, discharge_urls, precip_urls) %>%
+    filter(! grepl('Methods|info', filename))
+
+options(timeout = 3600)
+for(i in 1:nrow(all_urls)){
+
+    fl <- file.path('data_in', all_urls$filename[i])
+    if(file.exists(fl)) next
+    cat('downloading', all_urls$filename[i], 'to data_in/ \n')
+
+    res <- try({
+        download.file(url = all_urls$url[i],
+                      destfile = fl)
+    })
+
+    if(inherits(res, 'try-error')){
+        suppressWarnings(file.remove(fl))
+        cat('Removed partial file', fl, '\n')
+    }
+}
+
+if(! length(list.files('data_in')) == 21){
+    stop('some files failed to download. run the above loop again.')
+}
+
+## 2. load and clean data ####
+
+#drop cols that won't be used (simplifies unit conversion)
+#pH and pHmetrohm are merged and converted to [H ion]
+#ANC960 and ANCMet are merged
+unused_vars <- c('pH', 'DIC', 'temp', 'ANC960', 'ANCMet', 'TMAl', 'OMAl',
+                 'Al_ICP', 'Al_ferron', 'DOC', 'TDN', 'DON', 'ionError',
+                 'ionBalance', 'pHmetrohm', 'SiO2', 'PO4', 'cationCharge',
+                 'anionCharge')
+
+drop_cols <- c('timeEST', 'barcode', 'fieldCode', 'notes', 'uniqueID', 'duplicate',
+               'sampleType', 'canonical', 'gageHt', 'hydroGraph', 'flowGageHt',
+               'precipCatch', unused_vars)
+
+#chemistry
+s <- suppressWarnings(read_csv('data_in/HubbardBrook_weekly_stream_chemistry.csv',
+              show_col_types = FALSE)) %>%
+    filter(! fieldCode %in% bad_codes) %>%
+    rowwise() %>%
+    mutate(pH = mean(c(pH, pHmetrohm), na.rm = TRUE),
+           ANC = mean(c(ANC960, ANCMet), na.rm = TRUE)) %>%
+    ungroup() %>%
+    mutate(H = 10^(-pH)) %>%
+    select(-any_of(drop_cols)) %>%
+    group_by(site, date) %>%
+    summarize(across(-waterYr, ~mean(., na.rm = TRUE)),
+              waterYr = first(waterYr),
+              site = first(site),
+              .groups = 'drop')
+
+p <- read_csv('data_in/HubbardBrook_weekly_precipitation_chemistry.csv',
+              guess_max = 10000,
+              show_col_types = FALSE) %>%
+    rowwise() %>%
+    mutate(pH = mean(c(pH, pHmetrohm), na.rm = TRUE),
+           ANC = mean(c(ANC960, ANCMet), na.rm = TRUE)) %>%
+    ungroup() %>%
+    mutate(H = 10^(-pH)) %>%
+    filter(! fieldCode %in% bad_codes) %>%
+    select(-any_of(c(drop_cols, 'site'))) %>%
+    group_by(date) %>%
     summarize(across(-waterYr, ~mean(., na.rm = TRUE)),
               waterYr = first(waterYr),
               site = 'all',
+              .groups = 'drop') %>%
+    relocate(site)
+
+#precip
+p0 <- read_csv('data_in/HBEF daily precip.csv',
+               show_col_types = FALSE) %>%
+    group_by(date = DATE) %>%
+    summarize(precip = mean(Precip, na.rm = TRUE),
+              site = 'all',
+              .groups = 'drop') %>%
+    relocate(site)
+
+#discharge
+q1 <- map_dfr(list.files('data_in', pattern = 'w[0-9]_.*?2012\\.csv', full.names = TRUE),
+              ~read_csv(., show_col_types = FALSE)) %>%
+    mutate(site = paste0('W', WS)) %>%
+    group_by(site, date = as.Date(DATETIME)) %>%
+    summarize(discharge = mean(Discharge_ls, na.rm = TRUE),
               .groups = 'drop')
 
-p0 <- read_csv('data/dailyGagePrecip1956-2024.csv')
-
-q1 <- map_dfr(list.files('data', pattern = 'w[0-9]_.*?2012\\.csv', full.names = TRUE),
-              read_csv)
-### HERE: FORGET APPROXJOIN. JUST AVERAGE CHEM AND Q BY DAY AND JOIN
-q1 <- q1 %>%
+q2 <- map_dfr(list.files('data_in', pattern = 'w[0-9]_.*?_5min\\.csv', full.names = TRUE),
+              ~read_csv(., show_col_types = FALSE)) %>%
+    group_by(WS, date = as.Date(DATETIME)) %>%
+    summarize(discharge = mean(Discharge_ls, na.rm = TRUE),
+              .groups = 'drop') %>%
     mutate(site = paste0('W', WS)) %>%
-    select(site,
-q2 <- map_dfr(list.files('data', pattern = 'w[0-9]_.*?_5min\\.csv', full.names = TRUE),
-              read_csv)
+    select(site, date, discharge)
 
-## plot 1 ####
+q <- bind_rows(q1, q2) %>%
+    arrange(site, date)
 
-spcond_s <- calc_vwc_wateryear(s, 'spCond')
-spcond_p <- calc_vwc_wateryear(p, 'spCond')
+#join Q, P to C
+s <- left_join(s, q, by = c('site', 'date')) %>%
+    relocate(waterYr, discharge, .after = 'date')
 
-filter(spcond_s, site == 'W6') %>%
-    ggplot(aes(x = waterYr, y = spCond)) +
+p <- left_join(p, p0, by = c('site', 'date')) %>%
+    relocate(waterYr, precip, .after = 'date')
+
+#convert ions and molecules to ueq
+s <- convert_to_equivalents(s)
+p <- convert_to_equivalents(p)
+
+#make composite variables
+s$SO4_NO3 <- s$SO4 + s$NO3
+p$SO4_NO3 <- p$SO4 + p$NO3
+s$base_cat <- s$Ca + s$Mg + s$K + s$Na #+ s$NH4
+p$base_cat <- p$Ca + p$Mg + p$K + p$Na #+ p$NH4
+
+
+## 3. fig 1 (hysteresis) ####
+
+ggsave('figs/fig1.png', width = 6, height = 5)
+
+
+## 4. fig 2 (EC) ####
+
+v_ <- 'spCond'
+
+spcond_s <- calc_vwc_wateryear(s, v_, sample_cutoff = cutoff_s)
+spcond_p <- calc_vwc_wateryear(p, v_, sample_cutoff = cutoff_p)
+
+trend_s <- get_trendline(spcond_s, site = site, lims = c(min(spcond_s$waterYr), 2040))
+trend_p <- get_trendline(spcond_p, site = 'all', lims = c(min(spcond_p$waterYr), 2040))
+
+fig2d <- spcond_s %>%
+    filter(site == !!site) %>%
+    bind_rows(spcond_p)
+
+write_csv(fig2d, paste0('data_out/fig2_', site, '.csv'))
+
+fig2d %>%
+    ggplot(aes(x = waterYr,
+               y = spCond,
+               color = source,
+               fill = source,
+               shape = source)) +
     geom_line() +
-    geom_point()
+    geom_point() +
+    geom_line(data = trend_s,
+              aes(x = waterYr, y = spCond),
+              color = 'red',
+              linewidth = 0.3,
+              show.legend = FALSE) +
+    geom_line(data = trend_p,
+              aes(x = waterYr, y = spCond),
+              color = 'red',
+              linetype = 'dashed',
+              linewidth = 0.3,
+              show.legend = FALSE) +
+    scale_color_manual(values = c(Precipitation = 'blue3',
+                                  Streamwater = 'blue3')) +
+    scale_shape_manual(values = c(Precipitation = 21,
+                                  Streamwater = 21)) +
+    scale_fill_manual(values = c(Precipitation = 'white',
+                                 Streamwater = 'blue3')) +
+    labs(x = "Water Year",
+         y = "Specific Conductance (µS/cm)") +
+    guides(color = guide_legend(title = NULL),
+           fill = guide_legend(title = NULL),
+           shape = guide_legend(title = NULL)) +
+    theme_few() +
+    theme(legend.position = 'inside',
+          legend.position.inside = c(0.8, 0.8)) +
+    scale_y_continuous(limits = c(0, 40),
+                       expand = c(0, 0)) +
+    scale_x_continuous(breaks = seq(1960, 2040, by = 10),
+                       limits = c(1960, 2041),
+                       # expand = expansion(add = c(5, 0)))
+                       expand = c(0, 0))
 
-spcond_p %>%
-    ggplot(aes(x = waterYr, y = spCond)) +
+ggsave(paste0('figs/fig2_', site, '.png'), width = 8, height = 5)
+
+
+## 5. fig 3 (SO4 + NO3, base cations) ####
+
+v1 <- 'SO4_NO3'
+v2 <- 'base_cat'
+
+#panel A
+
+vs1 <- calc_vwc_wateryear(s, v1, sample_cutoff = cutoff_s)
+vs2 <- calc_vwc_wateryear(s, v2, sample_cutoff = cutoff_s)
+
+trend_s1 <- get_trendline(vs1, site = site, lims = c(min(vs1$waterYr), 2040))
+trend_s2 <- get_trendline(vs2, site = site, lims = c(min(vs1$waterYr), 2040))
+
+vs1 <- convert_to_long(vs1)
+vs2 <- convert_to_long(vs2)
+trend_s1 <- convert_to_long(trend_s1)
+trend_s2 <- convert_to_long(trend_s2)
+
+fig3da <- vs1 %>%
+    bind_rows(vs2) %>%
+    filter(site == !!site)
+
+write_csv(fig3da, paste0('data_out/fig3A_', site, '.csv'))
+
+panelA <- fig3da %>%
+    ggplot(aes(x = waterYr,
+               y = val,
+               color = var,
+               fill = var,
+               shape = var)) +
     geom_line() +
-    geom_point()
+    geom_point() +
+    geom_line(data = trend_s1,
+              aes(x = waterYr, y = val),
+              color = 'red',
+              linewidth = 0.3,
+              show.legend = FALSE) +
+    geom_line(data = trend_s2,
+              aes(x = waterYr, y = val),
+              color = 'red',
+              linetype = 'dashed',
+              linewidth = 0.3,
+              show.legend = FALSE) +
+    scale_color_manual(values = c(SO4_NO3 = 'blue3', base_cat = 'blue3'),
+                       labels = c(SO4_NO3 = 'Sum of Sulfate + Nitrate', base_cat = 'Sum of Base Cations')) +
+    scale_shape_manual(values = c(SO4_NO3 = 21, base_cat = 21),
+                       labels = c(SO4_NO3 = 'Sum of Sulfate + Nitrate', base_cat = 'Sum of Base Cations')) +
+    scale_fill_manual(values = c(SO4_NO3 = 'white', base_cat = 'blue3'),
+                      labels = c(SO4_NO3 = 'Sum of Sulfate + Nitrate', base_cat = 'Sum of Base Cations')) +
+    labs(x = "Water Year",
+         y = "Concentration  (µeq/L)") +
+    guides(color = guide_legend(title = NULL),
+           fill = guide_legend(title = NULL),
+           shape = guide_legend(title = NULL)) +
+    theme_few() +
+    theme(legend.position = 'inside',
+          legend.position.inside = c(0.8, 0.8)) +
+    scale_y_continuous(limits = c(0, 200),
+                       expand = c(0, 0)) +
+    scale_x_continuous(breaks = seq(1960, 2070, by = 10),
+                       limits = c(1960, 2071),
+                       expand = c(0, 0))
 
-#uEq
+#panel B
+
+vp1 <- calc_vwc_wateryear(p, v1, sample_cutoff = cutoff_p)
+vp2 <- calc_vwc_wateryear(p, v2, sample_cutoff = cutoff_p)
+
+trend_p1 <- get_trendline(vp1, site = 'all', lims = c(min(vp1$waterYr), 2040))
+trend_p2 <- get_trendline(vp2, site = 'all', lims = c(min(vp1$waterYr), 2040))
+
+vp1 <- convert_to_long(vp1)
+vp2 <- convert_to_long(vp2)
+trend_p1 <- convert_to_long(trend_p1)
+trend_p2 <- convert_to_long(trend_p2)
+
+fig3db <- vp1 %>%
+    bind_rows(vp2)
+
+write_csv(fig3db, paste0('data_out/fig3B_', site, '.csv'))
+
+panelB <- fig3db %>%
+    ggplot(aes(x = waterYr,
+               y = val,
+               color = var,
+               fill = var,
+               shape = var)) +
+    geom_line() +
+    geom_point() +
+    geom_line(data = trend_p1,
+              aes(x = waterYr, y = val),
+              color = 'red',
+              linewidth = 0.3,
+              show.legend = FALSE) +
+    geom_line(data = trend_p2,
+              aes(x = waterYr, y = val),
+              color = 'red',
+              linetype = 'dashed',
+              linewidth = 0.3,
+              show.legend = FALSE) +
+    scale_color_manual(values = c(SO4_NO3 = 'blue3', base_cat = 'blue3'),
+                       labels = c(SO4_NO3 = 'Sum of Sulfate + Nitrate', base_cat = 'Sum of Base Cations')) +
+    scale_shape_manual(values = c(SO4_NO3 = 21, base_cat = 21),
+                       labels = c(SO4_NO3 = 'Sum of Sulfate + Nitrate', base_cat = 'Sum of Base Cations')) +
+    scale_fill_manual(values = c(SO4_NO3 = 'white', base_cat = 'blue3'),
+                      labels = c(SO4_NO3 = 'Sum of Sulfate + Nitrate', base_cat = 'Sum of Base Cations')) +
+    labs(x = "Water Year",
+         y = "Concentration  (µeq/L)") +
+    guides(color = guide_legend(title = NULL),
+           fill = guide_legend(title = NULL),
+           shape = guide_legend(title = NULL)) +
+    theme_few() +
+    theme(legend.position = 'inside',
+          legend.position.inside = c(0.8, 0.8)) +
+    scale_y_continuous(limits = c(0, 120),
+                       expand = c(0, 0)) +
+    scale_x_continuous(breaks = seq(1960, 2070, by = 10),
+                       limits = c(1960, 2071),
+                       expand = c(0, 0))
+
+panelA + panelB + plot_layout(nrow = 2)#, heights = c(4, 1))
+
+ggsave(paste0('figs/fig3_', site, '.png'), width = 6, height = 8)
+
+## 6. fig 4 (various solutes) ####
+
+vars <- list(c('Ca', 'Na', 'Mg', 'K'),
+             c('SO4', 'Cl', 'NO3'),
+             c('H', 'ANC'))
+
+panel_count <- 0
+panel_list <- list()
+for(vset %in% vars){
+
+    panel_count <- panel_count + 1
+    panel_id <- toupper(letters[panel_count])
+
+    vs <- vp <- trend_s <- trend_p <- tibble()
+    for(v_ in vset){
+
+        vs_ <- calc_vwc_wateryear(s, v_, sample_cutoff = cutoff_s)
+        vp_ <- calc_vwc_wateryear(p, v_, sample_cutoff = cutoff_p)
+
+        trend_s_ <- get_trendline(vs_, site = site, lims = c(min(vs_$waterYr), 2040))
+        trend_p_ <- get_trendline(vp_, site = 'all', lims = c(min(vp_$waterYr), 2040))
+
+        vs <- bind_rows(vs, convert_to_long(vs_))
+        vp <- bind_rows(vp, convert_to_long(vp_))
+        trend_s <- bind_rows(trend_s, convert_to_long(trend_s_))
+        trend_p <- bind_rows(trend_p, convert_to_long(trend_p_))
+    }
+
+    fig4d <- vs %>%
+        filter(site == !!site)
+
+    write_csv(fig4d, paste0('data_out/fig4', panel_id, '_', site, '.csv'))
+
+    panel_list[[panel_count]] <- fig4d %>%
+        ggplot(aes(x = waterYr,
+                   y = val,
+                   color = var,
+                   fill = var,
+                   shape = var)) +
+        geom_line() +
+        geom_point() +
+        geom_line(data = filter(trend_s, var == !!,
+                  aes(x = waterYr, y = val),
+                  color = 'red',
+                  linewidth = 0.3,
+                  show.legend = FALSE) +
+        geom_line(data = trend_s2,
+                  aes(x = waterYr, y = val),
+                  color = 'red',
+                  linetype = 'dashed',
+                  linewidth = 0.3,
+                  show.legend = FALSE) +
+        scale_color_manual(values = c(SO4_NO3 = 'blue3', base_cat = 'blue3'),
+                           labels = c(SO4_NO3 = 'Sum of Sulfate + Nitrate', base_cat = 'Sum of Base Cations')) +
+        scale_shape_manual(values = c(SO4_NO3 = 21, base_cat = 21),
+                           labels = c(SO4_NO3 = 'Sum of Sulfate + Nitrate', base_cat = 'Sum of Base Cations')) +
+        scale_fill_manual(values = c(SO4_NO3 = 'white', base_cat = 'blue3'),
+                          labels = c(SO4_NO3 = 'Sum of Sulfate + Nitrate', base_cat = 'Sum of Base Cations')) +
+        labs(x = "Water Year",
+             y = "Concentration  (µeq/L)") +
+        guides(color = guide_legend(title = NULL),
+               fill = guide_legend(title = NULL),
+               shape = guide_legend(title = NULL)) +
+        theme_few() +
+        theme(legend.position = 'inside',
+              legend.position.inside = c(0.8, 0.8)) +
+        scale_y_continuous(limits = c(0, 200),
+                           expand = c(0, 0)) +
+        scale_x_continuous(breaks = seq(1960, 2070, by = 10),
+                           limits = c(1960, 2071),
+                           expand = c(0, 0))
+
+}
+
+panelA + panelB + panelC + panelD + panelE + panelF +
+    plot_layout(nrow = 3, byrow = TRUE)
+
+ggsave(paste0('figs/fig4_', site, '.png'), width = 6, height = 8)
+
+## 7. fig 5 (mainstem EC) ####
+
+#uEq !!!
+ggsave('figs/fig5.png', width = 8, height = 5)
