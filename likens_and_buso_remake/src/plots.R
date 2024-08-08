@@ -224,8 +224,8 @@ fig1d %>%
         guide = guide_colorbar(
             title.position = 'top',
             title.hjust = 0.5,
-            barwidth = 2,
-            barheight = 7,
+            barwidth = 1.5,
+            barheight = 5,
             frame.colour = 'transparent',
             ticks.colour = 'transparent'
         )
@@ -234,7 +234,8 @@ fig1d %>%
          y = 'Sum of Base Cations (µeq/L)') +
     theme_few() +
     theme(legend.position = 'inside',
-          legend.position.inside = c(0.9, 0.2)) +
+          legend.position.inside = c(0.85, 0.2),
+          plot.margin = margin(t = 10, r = 10, l = 3)) +
     scale_y_continuous(limits = c(0, 200),
                        expand = c(0, 0)) +
     scale_x_continuous(limits = c(0, 200),
@@ -469,7 +470,8 @@ for(vset in vars){
         guides(color = guide_legend(title = NULL)) +
         theme_few() +
         theme(legend.position = 'inside',
-              legend.position.inside = if(panel_count == 3) c(0.8, 0.2) else l_pos) +
+              legend.position.inside = if(panel_count == 3) c(0.8, 0.2) else l_pos,
+              plot.margin = margin(r = 10)) +
         scale_x_continuous(breaks = seq(1960, 2030, by = 10),
                            limits = c(1960, 2031),
                            expand = c(0, 0))
@@ -507,7 +509,7 @@ panel_list$A1 + panel_list$B1 + panel_list$A2 + panel_list$B2 +
     panel_list$A3 + panel_list$B3 +
     plot_layout(nrow = 3, byrow = TRUE, axes = 'collect')
 
-ggsave(paste0('figs/fig4_', site, '.png'), width = 6, height = 8)
+ggsave(paste0('figs/fig4_', site, '.png'), width = 9, height = 12)
 
 ## 7. fig 5 (mainstem annual EC) ####
 
