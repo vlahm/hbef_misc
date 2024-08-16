@@ -68,10 +68,10 @@ if(! length(list.files('data_in')) == 21){
 ## 2. load and clean data ####
 
 #establish which precip gauges will be used for N- and S-facing watersheds
-# north_facing_gauges <- c('RG19', 'RG23')
-# south_facing_gauges <- c('RG8', 'RG22') #RG-41?? W6-open, W1-open?
-north_facing_gauges <- c('N', paste0('RG', c(12:17, 19:21, 23:25)))
-south_facing_gauges <- c('S', paste0('RG', c(1:11, 22)))
+north_facing_gauges <- c('RG19', 'RG23')
+south_facing_gauges <- c('RG8', 'RG22') #RG-41?? W6-open, W1-open?
+# north_facing_gauges <- c('N', paste0('RG', c(12:17, 19:21, 23:25)))
+# south_facing_gauges <- c('S', paste0('RG', c(1:11, 22)))
 
 if(site %in% c('W7', 'W8', 'W9')){
     gauge_set <- north_facing_gauges
