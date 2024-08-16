@@ -23,7 +23,7 @@ source('src/helpers.R')
 #set these to your liking
 cutoff_s <- 10 #number of stream samples per water-year to require (NULL to ignore)
 cutoff_p <- NULL #same, but for precip samples
-site <- 'W6' #W1-9 are available. affects Figs 1-4
+site <- 'W6' #W1-9 are available. affects Figs 1-4. appropriate rain gauges are automatically chosen.
 bad_codes <- c(955, 969, 970) #remove contaminated/questionable samples
 # bad_codes <- c(955, 969, 970, 912, 911, 319) #remove storm/low flow samples too
 # bad_codes <- c() #don't remove any samples
@@ -67,6 +67,18 @@ if(! length(list.files('data_in')) == 21){
 
 ## 2. load and clean data ####
 
+#establish which precip gauges will be used for N- and S-facing watersheds
+# north_facing_gauges <- c('RG19', 'RG23')
+# south_facing_gauges <- c('RG8', 'RG22') #RG-41?? W6-open, W1-open?
+north_facing_gauges <- c('N', paste0('RG', c(12:17, 19:21, 23:25)))
+south_facing_gauges <- c('S', paste0('RG', c(1:11, 22)))
+
+if(site %in% c('W7', 'W8', 'W9')){
+    gauge_set <- north_facing_gauges
+} else {
+    gauge_set <- south_facing_gauges
+}
+
 #drop cols that won't be used (simplifies unit conversion)
 #pH and pHmetrohm are merged and converted to [H ion]
 #ANC960 and ANCMet are merged
@@ -104,7 +116,8 @@ p <- read_csv('data_in/HubbardBrook_weekly_precipitation_chemistry.csv',
            ANC = mean(c(ANC960, ANCMet), na.rm = TRUE)) %>%
     ungroup() %>%
     mutate(H = 10^(-pH) * 1.00784 * 1000) %>% #pH -> mg/L
-    filter(! fieldCode %in% bad_codes) %>%
+    filter(! fieldCode %in% bad_codes,
+           site %in% gauge_set) %>%
     select(-any_of(c(drop_cols, 'site'))) %>%
     group_by(date) %>%
     summarize(across(-waterYr, ~mean(., na.rm = TRUE)),
@@ -136,6 +149,7 @@ p$ANC <- NA
 #precip
 p0 <- read_csv('data_in/HBEF daily precip.csv',
                show_col_types = FALSE) %>%
+    filter(rainGage %in% gauge_set) %>%
     group_by(date = DATE) %>%
     summarize(precip = mean(Precip, na.rm = TRUE),
               site = 'all',
