@@ -143,7 +143,7 @@ p <- p %>%
                   ~na_interpolation(., maxgap = chem_maxgap))) %>%
     ungroup()
 
-#there were four precip values originally. all 0. remove these
+#there were four precip ANC values originally. all 0. remove these
 p$ANC <- NA
 
 #precip
@@ -182,7 +182,7 @@ q2 <- map_dfr(list.files('data_in', pattern = 'w[0-9]_.*?_5min\\.csv', full.name
 q <- bind_rows(q1, q2) %>%
     arrange(site, date)
 
-#interpolate gaps in precipitation series
+#interpolate gaps in discharge series
 q <- q %>%
     group_by(site) %>%
     mutate(discharge = na_interpolation(discharge, maxgap = q_maxgap)) %>%
