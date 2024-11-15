@@ -4,6 +4,7 @@
 
 setwd('~/git/hbef/hbef_misc/merge_historical_ml70_data/')
 dbname <- 'hbef'
+cfgpath <- '../../RMySQL.config'
 
 library(tidyverse)
 library(RMariaDB)
@@ -11,7 +12,7 @@ library(lubridate)
 
 con <- dbConnect(MariaDB(),
                  user = 'root',
-                 password = readLines('../../RMySQL.config'),
+                 password = readLines(cfgpath),
                  host = 'localhost',
                  dbname = dbname)
 
