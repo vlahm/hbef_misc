@@ -28,7 +28,7 @@ calc_vwc_wateryear <- function(d, var, sample_cutoff = NULL){
     #sample_cutoff: numeric or NULL. remove water years with < sample_cutoff sample
     #   days. if NULL, this parameter is ignored.
 
-    vvar <- intersect(c('precip', 'discharge'), colnames(d))
+    vvar <- intersect(c('precip', 'discharge', 'flow_mm'), colnames(d))
 
     d <- d %>%
         select(site, waterYr, !!var, !!vvar) %>%
@@ -37,6 +37,43 @@ calc_vwc_wateryear <- function(d, var, sample_cutoff = NULL){
         summarize(!!sym(var) := mean(!!sym(var) * !!sym(vvar), na.rm = TRUE) /
                       mean(!!sym(vvar), na.rm = TRUE),
                   n = n(),
+                  .groups = 'drop') %>%
+        arrange(waterYr)
+
+    d$source <- ifelse(vvar == 'precip', 'Precipitation', 'Streamwater')
+
+    low_n <- which(d$n < sample_cutoff)
+    if(length(low_n)){
+        z <- ifelse(is.null(sample_cutoff), 'keeping', 'dropping')
+        print(paste(z, 'water years with <', sample_cutoff, 'samples:'))
+        print(arrange(d[low_n, ], site, waterYr),
+              n = 100)
+    }
+
+    if(! is.null(sample_cutoff)){
+        d <- filter(d, n >= sample_cutoff)
+    }
+
+    return(d)
+}
+
+calc_vwc_wateryear_v2 <- function(d, var, sample_cutoff = NULL){
+
+    #sample_cutoff: numeric or NULL. remove water years with < sample_cutoff sample
+    #   days. if NULL, this parameter is ignored.
+
+    vvar <- intersect(c('precip', 'flow_mm'), colnames(d))
+
+    d <- d %>%
+        select(site, waterYr, date, !!var, !!vvar) %>%
+        filter(! if_any(c(!!var, !!vvar), is.na)) %>%
+        group_by(site, waterYr, month(date)) %>%
+        summarize(!!sym(var) := !!sym(var) / !!sym(vvar),
+                  n = n(),
+                  .groups = 'drop') %>%
+        group_by(site, waterYr) %>%
+        summarize(!!sym(var) := sum(!!sym(var), na.rm = TRUE),
+                  n = sum(n),
                   .groups = 'drop') %>%
         arrange(waterYr)
 
@@ -165,29 +202,33 @@ get_trendline <- function(d, site, lims){
 
 convert_to_equivalents <- function(d){
 
-    unconvertibles <- c('site', 'date', 'waterYr', 'discharge', 'precip',
-                        'cationCharge', 'anionCharge', 'spCond', 'ANC')
+    unconvertibles <- c('site', 'date', 'waterYr', 'discharge', 'precip', 'flow_mm',
+                        'cationCharge', 'anionCharge', 'spCond', 'SpecCond_volwt', 'ANC')
 
     d_ms <- d %>%
         pivot_longer(-any_of(c('site', 'date', 'waterYr')),
                      names_to = 'var',
                      values_to = 'val') %>%
         mutate(ms_status = 0,
-               ms_interp = 0,
-               var = paste0('GN_', var)) %>%
+               ms_interp = 0) %>%
+               # var = paste0('GN_', var)) %>%
         select(datetime = date, site_code = site, var, val, ms_status, ms_interp)
 
-    conv_list <- ms_drop_var_prefix(setdiff(unique(d_ms$var), unconvertibles))
+    # conv_list <- ms_drop_var_prefix(setdiff(unique(d_ms$var), unconvertibles))
+    conv_list <- setdiff(unique(d_ms$var), unconvertibles)
 
-    d_msA <- filter(d_ms, ms_drop_var_prefix(var) %in% unconvertibles)
-    d_msB <- filter(d_ms, ! ms_drop_var_prefix(var) %in% unconvertibles)
+    # d_msA <- filter(d_ms, ms_drop_var_prefix(var) %in% unconvertibles)
+    # d_msB <- filter(d_ms, ! ms_drop_var_prefix(var) %in% unconvertibles)
+    d_msA <- filter(d_ms, var %in% unconvertibles)
+    d_msB <- filter(d_ms, ! var %in% unconvertibles)
 
     d_msB <- ms_conversions(d_msB,
                             convert_units_from = 'mg/L',
                             convert_units_to = 'ueq/L')
 
     d <- bind_rows(d_msA, d_msB) %>%
-        mutate(var = ms_drop_var_prefix(var)) %>%
+        # mutate(var = ms_drop_var_prefix(var)) %>%
+        mutate(var = var) %>%
         select(date = datetime, site = site_code, var, val) %>%
         pivot_wider(names_from = var,
                     values_from = val) %>%

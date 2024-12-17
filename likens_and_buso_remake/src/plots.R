@@ -6,6 +6,7 @@
 
 #open this file via likens_and_buso_remake.Rproj to set paths
 #start by collapsing code sections with Alt+o (Linux, Windows) or Cmd+Opt+o (Mac)
+setwd('~/git/hbef/hbef_misc/likens_and_buso_remake/')
 
 library(tidyverse)
 library(lubridate)
@@ -27,21 +28,29 @@ site <- 'W6' #W1-9 are available. affects Figs 1-4. appropriate rain gauges are 
 bad_codes <- c(955, 969, 970) #remove contaminated/questionable samples
 # bad_codes <- c(955, 969, 970, 912, 911, 319) #remove storm/low flow samples too
 # bad_codes <- c() #don't remove any samples
-chem_maxgap <- 3 #number of consecutive chem samples to interpolate (can be 0)
-p_maxgap <- 1 #number of consecutive precip samples to interpolate (can be 0)
-q_maxgap <- 1 #number of consecutive discharge samples to interpolate (can be 0)
+chem_maxgap <- Inf #number of consecutive chem samples to interpolate (can be 0)
+# p_maxgap <- 1 #number of consecutive precip samples to interpolate (can be 0) #deprecated. using official p
+q_maxgap <- 0 #number of consecutive discharge samples to interpolate (can be 0)
 
-## 1. setup folders; download data ####
+## 0. load official hbef stream flux and precip VWC ####
+
+# vwc_official <- read_csv('data_in/official_method/results/ws6_precip_monthly_volwt_conc.csv')
+p_official <- read_csv('data_in/official_method/super_official/ws6_precip_WY_volwt_conc.csv',
+                       show_col_types = FALSE)
+s_official <- read_csv('data_in/ws6_stream_monthly_flux_gHa.csv', show_col_types = FALSE)
+
+## 1. set up folders; download data ####
 
 dir.create('data_in', showWarnings = FALSE)
 dir.create('data_out', showWarnings = FALSE)
 dir.create('figs', showWarnings = FALSE)
 
-chem_urls <- get_edi_url(prodcode = 208, version = 11)
-discharge_urls <- get_edi_url(prodcode = 1, version = 17)
-precip_urls <- get_edi_url(prodcode = 13, version = 22)
-all_urls <- bind_rows(chem_urls, discharge_urls, precip_urls) %>%
-    filter(! grepl('Methods|info', filename))
+# chem_urls <- get_edi_url(prodcode = 208, version = 11)
+# discharge_urls <- get_edi_url(prodcode = 1, version = 17)
+# precip_urls <- get_edi_url(prodcode = 13, version = 22)
+# all_urls <- bind_rows(chem_urls, discharge_urls, precip_urls) %>%
+#     filter(! grepl('Methods|info', filename))
+all_urls <- get_edi_url(prodcode = 8, version = 19)
 
 options(timeout = 3600)
 for(i in 1:nrow(all_urls)){
@@ -61,149 +70,185 @@ for(i in 1:nrow(all_urls)){
     }
 }
 
-if(! length(list.files('data_in')) == 21){
-    stop('some files failed to download. run the above loop again.')
-}
+# if(length(list.files('data_in')) < 20){
+#     stop('some files failed to download. run the above loop again.')
+# }
 
 ## 2. load and clean data ####
 
-#establish which precip gauges will be used for N- and S-facing watersheds
-north_facing_gauges <- c('RG19', 'RG23')
-south_facing_gauges <- c('RG8', 'RG22') #RG-41?? W6-open, W1-open?
-# north_facing_gauges <- c('N', paste0('RG', c(12:17, 19:21, 23:25)))
-# south_facing_gauges <- c('S', paste0('RG', c(1:11, 22)))
+# #establish which precip gauges will be used for N- and S-facing watersheds
+# north_facing_gauges <- c('RG19', 'RG23')
+# south_facing_gauges <- c('RG8', 'RG22') #RG-41?? W6-open, W1-open?
+# # north_facing_gauges <- c('N', paste0('RG', c(12:17, 19:21, 23:25)))
+# # south_facing_gauges <- c('S', paste0('RG', c(1:11, 22)))
+#
+# if(site %in% c('W7', 'W8', 'W9')){
+#     gauge_set <- north_facing_gauges
+# } else {
+#     gauge_set <- south_facing_gauges
+# }
+#
+# #drop cols that won't be used (simplifies unit conversion)
+# #pH and pHmetrohm are merged and converted to [H ion]
+# #ANC960 and ANCMet are merged
+# unused_vars <- c('pH', 'DIC', 'temp', 'ANC960', 'ANCMet', 'TMAl', 'OMAl',
+#                  'Al_ICP', 'Al_ferron', 'DOC', 'TDN', 'DON', 'ionError',
+#                  'ionBalance', 'pHmetrohm', 'SiO2', 'PO4', 'cationCharge',
+#                  'anionCharge')
+#
+# drop_cols <- c('timeEST', 'barcode', 'fieldCode', 'notes', 'uniqueID', 'duplicate',
+#                'sampleType', 'canonical', 'gageHt', 'hydroGraph', 'flowGageHt',
+#                'precipCatch', unused_vars)
+#
+# #chemistry
+# s <- suppressWarnings(read_csv('data_in/HubbardBrook_weekly_stream_chemistry.csv',
+#               show_col_types = FALSE)) %>%
+#     filter(! fieldCode %in% bad_codes) %>%
+#     rowwise() %>%
+#     mutate(pH = mean(c(pH, pHmetrohm), na.rm = TRUE),
+#            ANC = mean(c(ANC960, ANCMet), na.rm = TRUE)) %>%
+#     ungroup() %>%
+#     mutate(H = 10^(-pH) * 1.00784 * 1000) %>% #pH -> mg/L
+#     select(-any_of(drop_cols)) %>%
+#     group_by(site, date) %>%
+#     summarize(across(-waterYr, ~mean(., na.rm = TRUE)),
+#               waterYr = first(waterYr),
+#               site = first(site),
+#               .groups = 'drop') %>%
+#     arrange(site, date)
+#
+# # p <- read_csv('data_in/HubbardBrook_weekly_precipitation_chemistry.csv',
+# #               guess_max = 10000,
+# #               show_col_types = FALSE) %>%
+# #     rowwise() %>%
+# #     mutate(pH = mean(c(pH, pHmetrohm), na.rm = TRUE),
+# #            ANC = mean(c(ANC960, ANCMet), na.rm = TRUE)) %>%
+# #     ungroup() %>%
+# #     mutate(H = 10^(-pH) * 1.00784 * 1000) %>% #pH -> mg/L
+# #     filter(! fieldCode %in% bad_codes,
+# #            site %in% gauge_set) %>%
+# #     select(-any_of(c(drop_cols, 'site'))) %>%
+# #     group_by(date) %>%
+# #     summarize(across(-waterYr, ~mean(., na.rm = TRUE)),
+# #               waterYr = first(waterYr),
+# #               site = 'all',
+# #               .groups = 'drop') %>%
+# #     relocate(site) %>%
+# #     arrange(site, date)
+#
+# #remove W6 observations with high Ca in 1963
+# s[s$waterYr == 1963 & s$site == 'W6' & s$Ca > 2, 'Ca'] <- NA
+# # s[s$waterYr == 1963 & s$site == 'W6', c('SO4', 'NO3', 'SO4_NO3')] %>% print(n=100)
+#
+# #interpolate gaps in chemistry series
+# s <- s %>%
+#     group_by(site) %>%
+#     mutate(across(-any_of(c('site', 'date', 'waterYr')),
+#                   ~na_locf(., maxgap = chem_maxgap, option = 'nocb'))) %>%
+#                   # ~na_interpolation(., maxgap = chem_maxgap))) %>%
+#     ungroup()
+# # p <- p %>%
+# #     group_by(site) %>%
+# #     mutate(across(-any_of(c('site', 'date', 'waterYr')),
+# #                   ~na_locf(., maxgap = chem_maxgap, option = 'nocb'))) %>%
+# #                   # ~na_interpolation(., maxgap = chem_maxgap))) %>%
+# #     ungroup()
+#
+# # #there were four precip ANC values originally. all 0. remove these
+# # p$ANC <- NA
+#
+# # #precip
+# # p0 <- read_csv('data_in/HBEF daily precip.csv',
+# #                show_col_types = FALSE) %>%
+# #     filter(rainGage %in% gauge_set) %>%
+# #     group_by(date = DATE) %>%
+# #     summarize(precip = mean(Precip, na.rm = TRUE),
+# #               site = 'all',
+# #               .groups = 'drop') %>%
+# #     relocate(site) %>%
+# #     arrange(site, date)
+#
+# # #interpolate gaps in precipitation series
+# # p0 <- p0 %>%
+# #     group_by(site) %>%
+# #     mutate(precip = na_interpolation(precip, maxgap = p_maxgap)) %>%
+# #     ungroup()
+#
+# #discharge
+# q1 <- map_dfr(list.files('data_in', pattern = 'w[0-9]_.*?2012\\.csv', full.names = TRUE),
+#               ~read_csv(., show_col_types = FALSE)) %>%
+#     mutate(site = paste0('W', WS)) %>%
+#     group_by(site, date = as.Date(DATETIME)) %>%
+#     summarize(discharge = mean(Discharge_ls, na.rm = TRUE),
+#               .groups = 'drop')
+#
+# q2 <- map_dfr(list.files('data_in', pattern = 'w[0-9]_.*?_5min\\.csv', full.names = TRUE),
+#               ~read_csv(., show_col_types = FALSE)) %>%
+#     group_by(WS, date = as.Date(DATETIME)) %>%
+#     summarize(discharge = mean(Discharge_ls, na.rm = TRUE),
+#               .groups = 'drop') %>%
+#     mutate(site = paste0('W', WS)) %>%
+#     select(site, date, discharge)
+#
+# q <- bind_rows(q1, q2) %>%
+#     arrange(site, date)
+#
+# #interpolate gaps in discharge series
+# q <- q %>%
+#     group_by(site) %>%
+#     mutate(discharge = na_interpolation(discharge, maxgap = q_maxgap)) %>%
+#     ungroup()
+#
+# #join Q, P to C
+# s <- left_join(s, q, by = c('site', 'date')) %>%
+#     relocate(waterYr, discharge, .after = 'date')
+#
+# # p <- left_join(p, p0, by = c('site', 'date')) %>%
+# #     relocate(waterYr, precip, .after = 'date')
+#
+# #convert solutes to ueq
+# s <- convert_to_equivalents(s)
+# # p <- convert_to_equivalents(p)
+#
+# #make composite variables
+# s$SO4_NO3 <- rowSums(s[, c('SO4', 'NO3')])
+# # p$SO4_NO3 <- rowSums(p[, c('SO4', 'NO3')])
+# s$base_cat <- rowSums(s[, c('Ca', 'Mg', 'K', 'Na')])
+# # p$base_cat <- rowSums(p[, c('Ca', 'Mg', 'K', 'Na')])
 
-if(site %in% c('W7', 'W8', 'W9')){
-    gauge_set <- north_facing_gauges
-} else {
-    gauge_set <- south_facing_gauges
-}
+#process official precip vwc and stream flux
+p_official <- p_official %>%
+    mutate(site = 'all',
+           # waterYr = ifelse(as.numeric(Month) < 6, Year - 1, Year),
+           source = 'Precipitation') %>%
+    # filter(waterYr != 1963) %>%
+    rename_with(~sub('_volwt', '', .)) %>%
+    # mutate(date = as.Date(paste0(Year_Month, '-01'))) %>%
+    mutate(date = as.Date(paste0(WaterYear, '-06-01'))) %>%
+    select(site, date, waterYr = WaterYear, precip = precip_mm, spCond = SpecCond, Ca,
+           Mg, K, Na, NH4, SO4, NO3, Cl, Mn, Fe, `F`, H) %>%
+    mutate(across(precip:H, ~if_else(. < -800, NA_real_, .)))
 
-#drop cols that won't be used (simplifies unit conversion)
-#pH and pHmetrohm are merged and converted to [H ion]
-#ANC960 and ANCMet are merged
-unused_vars <- c('pH', 'DIC', 'temp', 'ANC960', 'ANCMet', 'TMAl', 'OMAl',
-                 'Al_ICP', 'Al_ferron', 'DOC', 'TDN', 'DON', 'ionError',
-                 'ionBalance', 'pHmetrohm', 'SiO2', 'PO4', 'cationCharge',
-                 'anionCharge')
+p_official <- convert_to_equivalents(p_official)
+p_official$SO4_NO3 <- rowSums(p_official[, c('SO4', 'NO3')])
+p_official$base_cat <- rowSums(p_official[, c('Ca', 'Mg', 'K', 'Na')])
 
-drop_cols <- c('timeEST', 'barcode', 'fieldCode', 'notes', 'uniqueID', 'duplicate',
-               'sampleType', 'canonical', 'gageHt', 'hydroGraph', 'flowGageHt',
-               'precipCatch', unused_vars)
+s_official <- read_csv('data_in/ws6_stream_monthly_flux_gHa.csv', show_col_types = FALSE)
+s_official <- s_official %>%
+    mutate(site = !!site,
+           source = 'Streamwater',
+           waterYr = ifelse(as.numeric(Month) < 6, Year - 1, Year)) %>%
+    # filter(waterYr != 1963) %>%
+    rename_with(~sub('_flux', '', .)) %>%
+    mutate(date = as.Date(paste0(Year_Month, '-01'))) %>%
+    select(site, date, waterYr, flow_mm, SpecCond_volwt, Ca,
+           Mg, K, Na, NH4, SO4, NO3, Cl, Mn, Fe, `F`, H) %>%
+    mutate(across(SpecCond_volwt:H, ~if_else(. < -800, NA_real_, .)),
+           across(Ca:H, ~. / flow_mm / 10))
 
-#chemistry
-s <- suppressWarnings(read_csv('data_in/HubbardBrook_weekly_stream_chemistry.csv',
-              show_col_types = FALSE)) %>%
-    filter(! fieldCode %in% bad_codes) %>%
-    rowwise() %>%
-    mutate(pH = mean(c(pH, pHmetrohm), na.rm = TRUE),
-           ANC = mean(c(ANC960, ANCMet), na.rm = TRUE)) %>%
-    ungroup() %>%
-    mutate(H = 10^(-pH) * 1.00784 * 1000) %>% #pH -> mg/L
-    select(-any_of(drop_cols)) %>%
-    group_by(site, date) %>%
-    summarize(across(-waterYr, ~mean(., na.rm = TRUE)),
-              waterYr = first(waterYr),
-              site = first(site),
-              .groups = 'drop') %>%
-    arrange(site, date)
-
-p <- read_csv('data_in/HubbardBrook_weekly_precipitation_chemistry.csv',
-              guess_max = 10000,
-              show_col_types = FALSE) %>%
-    rowwise() %>%
-    mutate(pH = mean(c(pH, pHmetrohm), na.rm = TRUE),
-           ANC = mean(c(ANC960, ANCMet), na.rm = TRUE)) %>%
-    ungroup() %>%
-    mutate(H = 10^(-pH) * 1.00784 * 1000) %>% #pH -> mg/L
-    filter(! fieldCode %in% bad_codes,
-           site %in% gauge_set) %>%
-    select(-any_of(c(drop_cols, 'site'))) %>%
-    group_by(date) %>%
-    summarize(across(-waterYr, ~mean(., na.rm = TRUE)),
-              waterYr = first(waterYr),
-              site = 'all',
-              .groups = 'drop') %>%
-    relocate(site) %>%
-    arrange(site, date)
-
-#remove W6 observations with high Ca in 1963
-s[s$waterYr == 1963 & s$site == 'W6' & s$Ca > 2, 'Ca'] <- NA
-# s[s$waterYr == 1963 & s$site == 'W6', c('SO4', 'NO3', 'SO4_NO3')] %>% print(n=100)
-
-#interpolate gaps in chemistry series
-s <- s %>%
-    group_by(site) %>%
-    mutate(across(-any_of(c('site', 'date', 'waterYr')),
-                  ~na_interpolation(., maxgap = chem_maxgap))) %>%
-    ungroup()
-p <- p %>%
-    group_by(site) %>%
-    mutate(across(-any_of(c('site', 'date', 'waterYr')),
-                  ~na_interpolation(., maxgap = chem_maxgap))) %>%
-    ungroup()
-
-#there were four precip ANC values originally. all 0. remove these
-p$ANC <- NA
-
-#precip
-p0 <- read_csv('data_in/HBEF daily precip.csv',
-               show_col_types = FALSE) %>%
-    filter(rainGage %in% gauge_set) %>%
-    group_by(date = DATE) %>%
-    summarize(precip = mean(Precip, na.rm = TRUE),
-              site = 'all',
-              .groups = 'drop') %>%
-    relocate(site) %>%
-    arrange(site, date)
-
-#interpolate gaps in precipitation series
-p0 <- p0 %>%
-    group_by(site) %>%
-    mutate(precip = na_interpolation(precip, maxgap = p_maxgap)) %>%
-    ungroup()
-
-#discharge
-q1 <- map_dfr(list.files('data_in', pattern = 'w[0-9]_.*?2012\\.csv', full.names = TRUE),
-              ~read_csv(., show_col_types = FALSE)) %>%
-    mutate(site = paste0('W', WS)) %>%
-    group_by(site, date = as.Date(DATETIME)) %>%
-    summarize(discharge = mean(Discharge_ls, na.rm = TRUE),
-              .groups = 'drop')
-
-q2 <- map_dfr(list.files('data_in', pattern = 'w[0-9]_.*?_5min\\.csv', full.names = TRUE),
-              ~read_csv(., show_col_types = FALSE)) %>%
-    group_by(WS, date = as.Date(DATETIME)) %>%
-    summarize(discharge = mean(Discharge_ls, na.rm = TRUE),
-              .groups = 'drop') %>%
-    mutate(site = paste0('W', WS)) %>%
-    select(site, date, discharge)
-
-q <- bind_rows(q1, q2) %>%
-    arrange(site, date)
-
-#interpolate gaps in discharge series
-q <- q %>%
-    group_by(site) %>%
-    mutate(discharge = na_interpolation(discharge, maxgap = q_maxgap)) %>%
-    ungroup()
-
-#join Q, P to C
-s <- left_join(s, q, by = c('site', 'date')) %>%
-    relocate(waterYr, discharge, .after = 'date')
-
-p <- left_join(p, p0, by = c('site', 'date')) %>%
-    relocate(waterYr, precip, .after = 'date')
-
-#convert solutes to ueq
-s <- convert_to_equivalents(s)
-p <- convert_to_equivalents(p)
-
-#make composite variables
-s$SO4_NO3 <- rowSums(s[, c('SO4', 'NO3')])
-p$SO4_NO3 <- rowSums(p[, c('SO4', 'NO3')])
-s$base_cat <- rowSums(s[, c('Ca', 'Mg', 'K', 'Na')])
-p$base_cat <- rowSums(p[, c('Ca', 'Mg', 'K', 'Na')])
+s_official <- convert_to_equivalents(s_official)
+s_official$SO4_NO3 <- rowSums(s_official[, c('SO4', 'NO3')])
+s_official$base_cat <- rowSums(s_official[, c('Ca', 'Mg', 'K', 'Na')])
 
 ## 3. fig 1 (hysteresis) ####
 
@@ -324,8 +369,10 @@ v2 <- 'base_cat'
 
 #panel A
 
-vs1 <- calc_vwc_wateryear(s, v1, sample_cutoff = cutoff_s)
-vs2 <- calc_vwc_wateryear(s, v2, sample_cutoff = cutoff_s)
+# vs1 <- calc_vwc_wateryear_v2(s, v1, sample_cutoff = cutoff_s)
+# vs2 <- calc_vwc_wateryear_v2(s, v2, sample_cutoff = cutoff_s)
+vs1 <- calc_vwc_wateryear(s_official, v1, sample_cutoff = cutoff_s)
+vs2 <- calc_vwc_wateryear(s_official, v2, sample_cutoff = cutoff_s)
 
 trend_s1 <- get_trendline(vs1, site = site, lims = c(min(vs1$waterYr), 2040))
 trend_s2 <- get_trendline(vs2, site = site, lims = c(min(vs1$waterYr), 2040))
@@ -382,8 +429,24 @@ panelA <- fig3da %>%
 
 #panel B
 
-vp1 <- calc_vwc_wateryear(p, v1, sample_cutoff = cutoff_p)
-vp2 <- calc_vwc_wateryear(p, v2, sample_cutoff = cutoff_p)
+# #nocb interpolate precip chem
+# p <- imputeTS::na_locf(p, option = 'nocb')
+#
+# vp1 <- calc_vwc_wateryear(p, v1, sample_cutoff = cutoff_p, month_first = TRUE)
+# vp2 <- calc_vwc_wateryear(p, v2, sample_cutoff = cutoff_p, month_first = TRUE)
+
+nit_sul_base <- p_official %>%
+    mutate(source = 'Precipitation') %>%
+    group_by(site, waterYr, source) %>%
+    summarize(SO4_NO3 = mean(SO4_NO3, na.rm = TRUE),
+              base_cat = mean(base_cat, na.rm = TRUE),
+              site = first(site),
+              source = first(source),
+              .groups = 'drop',
+              n = n()) %>%
+    select(site, waterYr, SO4_NO3, base_cat, n, source)
+vp1 <- select(nit_sul_base, -base_cat)
+vp2 <- select(nit_sul_base, -SO4_NO3)
 
 trend_p1 <- get_trendline(vp1, site = 'all', lims = c(min(vp1$waterYr), 2040))
 trend_p2 <- get_trendline(vp2, site = 'all', lims = c(min(vp1$waterYr), 2040))
