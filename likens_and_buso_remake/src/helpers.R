@@ -99,7 +99,7 @@ calc_vwc_year <- function(d, var, sample_cutoff = NULL){
     #sample_cutoff: numeric or NULL. remove water years with < sample_cutoff sample
     #   days. if NULL, this parameter is ignored.
 
-    vvar <- intersect(c('precip', 'discharge'), colnames(d))
+    vvar <- intersect(c('precip', 'discharge', 'flow_mm'), colnames(d))
 
     d <- d %>%
         mutate(year = year(date)) %>%
@@ -136,7 +136,7 @@ calc_mean_year <- function(d, var, sample_cutoff = NULL){
     #sample_cutoff: numeric or NULL. remove water years with < sample_cutoff sample
     #   days. if NULL, this parameter is ignored.
 
-    vvar <- intersect(c('precip', 'discharge'), colnames(d))
+    vvar <- intersect(c('precip', 'discharge', 'flow_mm'), colnames(d))
 
     d <- d %>%
         mutate(year = year(date)) %>%
@@ -180,7 +180,11 @@ extend_x_axis <- function(d, to){
     tidyr::complete(d, site, waterYr = 2010:to)
 }
 
-get_trendline <- function(d, site, lims){
+get_trendline <- function(d, site, lims, filt = FALSE){
+    #filt: if TRUE, filter the dataset by lims; otherwise regress on all data and
+    #just plot within the lims
+
+    if(filt) d <- filter(d, between(waterYr, lims[1], lims[2]))
 
     v_ <- setdiff(colnames(d), c('site', 'waterYr', 'n', 'source'))
     yrs <- seq(lims[1], lims[2])
