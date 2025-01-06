@@ -91,7 +91,7 @@ for(i in 1:nrow(all_urls)){
 #drop cols that won't be used (simplifies unit conversion)
 #pH and pHmetrohm are merged and converted to [H ion]
 #ANC960 and ANCMet are merged
-unused_vars <- c('pH', 'DIC', 'temp', 'ANC960', 'ANCMet', 'TMAl', 'OMAl',
+unused_vars <- c('DIC', 'temp', 'ANC960', 'ANCMet', 'TMAl', 'OMAl',
                  'Al_ICP', 'Al_ferron', 'DOC', 'TDN', 'DON', 'ionError',
                  'ionBalance', 'pHmetrohm', 'SiO2', 'PO4', 'cationCharge',
                  'anionCharge')
@@ -207,7 +207,9 @@ s <- left_join(s, q, by = c('site', 'date')) %>%
 #     relocate(waterYr, precip, .after = 'date')
 
 #convert solutes to ueq
-s <- convert_to_equivalents(s)
+s_bak <- s
+s <- convert_to_equivalents(select(s, -pH))
+s <- bind_cols(s, select(s_bak, pH))
 # p <- convert_to_equivalents(p)
 
 #make composite variables
@@ -226,10 +228,12 @@ p_official <- p_official %>%
     # mutate(date = as.Date(paste0(Year_Month, '-01'))) %>%
     mutate(date = as.Date(paste0(WaterYear, '-06-01'))) %>%
     select(site, date, waterYr = WaterYear, precip = precip_mm, spCond = SpecCond, Ca,
-           Mg, K, Na, NH4, SO4, NO3, Cl, Mn, Fe, `F`, H) %>%
-    mutate(across(precip:H, ~if_else(. < -800, NA_real_, .)))
+           Mg, K, Na, NH4, SO4, NO3, Cl, Mn, Fe, `F`, H, pH) %>%
+    mutate(across(precip:pH, ~if_else(. < -800, NA_real_, .)))
 
-p_official <- convert_to_equivalents(p_official)
+p_bak <- p_official
+p_official <- convert_to_equivalents(select(p_official, -pH))
+p_official <- bind_cols(p_official, select(p_bak, pH))
 p_official$SO4_NO3 <- rowSums(p_official[, c('SO4', 'NO3')])
 p_official$base_cat <- rowSums(p_official[, c('Ca', 'Mg', 'K', 'Na')])
 
@@ -241,12 +245,14 @@ s_official <- s_official %>%
     rename_with(~sub('_flux', '', .)) %>%
     mutate(date = as.Date(paste0(Year_Month, '-01'))) %>%
     select(site, date, waterYr, flow_mm, SpecCond_volwt, ANC_volwt, Ca,
-           Mg, K, Na, NH4, SO4, NO3, Cl, Mn, Fe, `F`, H) %>%
-    mutate(across(SpecCond_volwt:H, ~if_else(. < -800, NA_real_, .)),
+           Mg, K, Na, NH4, SO4, NO3, Cl, Mn, Fe, `F`, H, pH = pH_volwt) %>%
+    mutate(across(SpecCond_volwt:pH, ~if_else(. < -800, NA_real_, .)),
            across(Ca:H, ~. / flow_mm / 10)) %>%
     rename(spCond = SpecCond_volwt, ANC = ANC_volwt)
 
-s_official <- convert_to_equivalents(s_official)
+s_bak <- s_official
+s_official <- convert_to_equivalents(select(s_official, -pH))
+s_official <- bind_cols(s_official, select(s_bak, pH))
 s_official$SO4_NO3 <- rowSums(s_official[, c('SO4', 'NO3')])
 s_official$base_cat <- rowSums(s_official[, c('Ca', 'Mg', 'K', 'Na')])
 
@@ -552,6 +558,236 @@ panelB <- fig3db %>%
 panelA + panelB + plot_layout(nrow = 2)#, heights = c(4, 1))
 
 ggsave(paste0('figs/fig3_', site, '.png'), width = 6, height = 8)
+
+## 5b. same thing but pH, SO4, NO3 for Amey ####
+
+v1 <- 'NO3'
+v2 <- 'SO4'
+
+#panel A
+
+vs1 <- calc_vwc_wateryear(s_official, v1, sample_cutoff = cutoff_s)
+vs2 <- calc_vwc_wateryear(s_official, v2, sample_cutoff = cutoff_s)
+
+trend_s1 <- get_trendline(vs1, site = site, lims = c(min(vs1$waterYr), 2040))
+trend_s2 <- get_trendline(vs2, site = site, lims = c(min(vs1$waterYr), 2040))
+
+vs1 <- convert_to_long(vs1)
+vs2 <- convert_to_long(vs2)
+trend_s1 <- convert_to_long(trend_s1)
+trend_s2 <- convert_to_long(trend_s2)
+
+panelA <- vs1 %>%
+    bind_rows(vs2) %>%
+    filter(site == !!site) %>%
+    ggplot(aes(x = waterYr,
+               y = val,
+               color = var,
+               fill = var,
+               shape = var)) +
+    geom_line() +
+    geom_point() +
+    geom_line(data = trend_s1,
+              aes(x = waterYr, y = val),
+              color = 'red',
+              linewidth = 0.3,
+              show.legend = FALSE) +
+    geom_line(data = trend_s2,
+              aes(x = waterYr, y = val),
+              color = 'red',
+              linetype = 'dashed',
+              linewidth = 0.3,
+              show.legend = FALSE) +
+    scale_color_manual(values = c(NO3 = 'blue3', SO4 = 'blue3'),
+                       labels = c(NO3 = 'Nitrate', SO4 = 'Sulfate')) +
+    scale_shape_manual(values = c(NO3 = 21, SO4 = 21),
+                       labels = c(NO3 = 'Nitrate', SO4 = 'Sulfate')) +
+    scale_fill_manual(values = c(NO3 = 'white', SO4 = 'blue3'),
+                      labels = c(NO3 = 'Nitrate', SO4 = 'Sulfate')) +
+    labs(x = "Water-Year",
+         y = "Concentration  (µeq/L)",
+         title = 'Stream water') +
+    guides(color = guide_legend(title = NULL),
+           fill = guide_legend(title = NULL),
+           shape = guide_legend(title = NULL)) +
+    theme_few() +
+    theme(legend.position = 'inside',
+          legend.position.inside = c(0.9, 0.8)) +
+    scale_y_continuous(limits = c(0, 150),
+                       expand = c(0, 0)) +
+    scale_x_continuous(breaks = seq(1960, 2050, by = 10),
+                       limits = c(1960, 2051),
+                       expand = c(0, 0))
+
+#panel B
+
+nit_sul_base <- p_official %>%
+    mutate(source = 'Precipitation') %>%
+    group_by(site, waterYr, source) %>%
+    summarize(NO3 = mean(NO3, na.rm = TRUE),
+              SO4 = mean(SO4, na.rm = TRUE),
+              site = first(site),
+              source = first(source),
+              .groups = 'drop',
+              n = n()) %>%
+    select(site, waterYr, NO3, SO4, n, source)
+vp1 <- select(nit_sul_base, -NO3)
+vp2 <- select(nit_sul_base, -SO4)
+
+trend_p1 <- get_trendline(vp1, site = 'all', lims = c(min(vp1$waterYr), 2040))
+trend_p2 <- get_trendline(vp2, site = 'all', lims = c(min(vp1$waterYr), 2040))
+
+vp1 <- convert_to_long(vp1)
+vp2 <- convert_to_long(vp2)
+trend_p1 <- convert_to_long(trend_p1)
+trend_p2 <- convert_to_long(trend_p2)
+
+panelB <- vp1 %>%
+    bind_rows(vp2) %>%
+    ggplot(aes(x = waterYr,
+               y = val,
+               color = var,
+               fill = var,
+               shape = var)) +
+    geom_line() +
+    geom_point() +
+    geom_line(data = trend_p1,
+              aes(x = waterYr, y = val),
+              color = 'red',
+              linewidth = 0.3,
+              show.legend = FALSE) +
+    geom_line(data = trend_p2,
+              aes(x = waterYr, y = val),
+              color = 'red',
+              linetype = 'dashed',
+              linewidth = 0.3,
+              show.legend = FALSE) +
+    scale_color_manual(values = c(NO3 = 'blue3', SO4 = 'blue3'),
+                       labels = c(NO3 = 'Nitrate', SO4 = 'Sulfate')) +
+    scale_shape_manual(values = c(NO3 = 21, SO4 = 21),
+                       labels = c(NO3 = 'Nitrate', SO4 = 'Sulfate')) +
+    scale_fill_manual(values = c(NO3 = 'white', SO4 = 'blue3'),
+                      labels = c(NO3 = 'Nitrate', SO4 = 'Sulfate')) +
+    labs(x = "Water-Year",
+         y = "Concentration  (µeq/L)",
+         title = 'Precipitation') +
+    guides(color = guide_legend(title = NULL),
+           fill = guide_legend(title = NULL),
+           shape = guide_legend(title = NULL)) +
+    theme_few() +
+    theme(legend.position = 'inside',
+          legend.position.inside = c(0.9, 0.8)) +
+    scale_y_continuous(limits = c(0, 150),
+                       expand = c(0, 0)) +
+    scale_x_continuous(breaks = seq(1960, 2050, by = 10),
+                       limits = c(1960, 2051),
+                       expand = c(0, 0))
+
+panelA + panelB + plot_layout(nrow = 2)#, heights = c(4, 1))
+
+ggsave('~/Desktop/no3_so4.png', width = 6, height = 8)
+
+#pH
+
+vs1 <- s_official %>%
+    select(site, waterYr, pH) %>%
+    filter(! is.na(pH)) %>%
+    group_by(site, waterYr) %>%
+    summarize(pH = mean(pH, na.rm = TRUE),
+              n = n(),
+              .groups = 'drop') %>%
+    mutate(source = 'Streamwater') %>%
+    arrange(waterYr)
+
+trend_s1 <- get_trendline(vs1, site = site, lims = c(min(vs1$waterYr), 2040))
+
+vs1 <- convert_to_long(vs1)
+trend_s1 <- convert_to_long(trend_s1)
+
+panelA <- vs1 %>%
+    filter(site == !!site) %>%
+    ggplot(aes(x = waterYr,
+               y = val,
+               color = var,
+               fill = var,
+               shape = var)) +
+    geom_line() +
+    geom_point() +
+    geom_line(data = trend_s1,
+              aes(x = waterYr, y = val),
+              color = 'red',
+              linewidth = 0.3,
+              show.legend = FALSE) +
+    scale_color_manual(values = c(pH = 'black')) +
+    scale_shape_manual(values = c(pH = 21)) +
+    scale_fill_manual(values = c(pH = 'white')) +
+    labs(x = "Water-Year",
+         y = "pH",
+         title = 'Stream water') +
+    guides(color = guide_legend(title = NULL),
+           fill = guide_legend(title = NULL),
+           shape = guide_legend(title = NULL)) +
+    theme_few() +
+    theme(legend.position = 'inside',
+          legend.position.inside = c(0.1, 0.9)) +
+    scale_y_continuous(limits = c(3.8, 6),
+                       expand = c(0, 0)) +
+    scale_x_continuous(breaks = seq(1960, 2050, by = 10),
+                       limits = c(1960, 2051),
+                       expand = c(0, 0))
+
+#panel B
+
+vp1 <- p_official %>%
+    mutate(source = 'Precipitation') %>%
+    group_by(site, waterYr, source) %>%
+    summarize(pH = mean(pH, na.rm = TRUE),
+              site = first(site),
+              source = first(source),
+              .groups = 'drop',
+              n = n()) %>%
+    select(site, waterYr, pH, n, source)
+
+trend_p1 <- get_trendline(vp1, site = 'all', lims = c(min(vp1$waterYr), 2040))
+
+vp1 <- convert_to_long(vp1)
+trend_p1 <- convert_to_long(trend_p1)
+
+panelB <- vp1 %>%
+    # bind_rows(vp2) %>%
+    ggplot(aes(x = waterYr,
+               y = val,
+               color = var,
+               fill = var,
+               shape = var)) +
+    geom_line() +
+    geom_point() +
+    geom_line(data = trend_p1,
+              aes(x = waterYr, y = val),
+              color = 'red',
+              linewidth = 0.3,
+              show.legend = FALSE) +
+    scale_color_manual(values = c(pH = 'black')) +
+    scale_shape_manual(values = c(pH = 21)) +
+    scale_fill_manual(values = c(pH = 'white')) +
+    labs(x = "Water-Year",
+         y = "pH",
+         title = 'Precipitation') +
+    guides(color = guide_legend(title = NULL),
+           fill = guide_legend(title = NULL),
+           shape = guide_legend(title = NULL)) +
+    theme_few() +
+    theme(legend.position = 'inside',
+          legend.position.inside = c(0.1, 0.9)) +
+    scale_y_continuous(limits = c(3.8, 6),
+                       expand = c(0, 0)) +
+    scale_x_continuous(breaks = seq(1960, 2050, by = 10),
+                       limits = c(1960, 2051),
+                       expand = c(0, 0))
+
+panelA + panelB + plot_layout(nrow = 2)#, heights = c(4, 1))
+
+ggsave('~/Desktop/pH.png', width = 6, height = 8)
 
 ## 6. fig 4 (various solutes) ####
 
