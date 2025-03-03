@@ -7,19 +7,25 @@ wateryears are apparently named for their starts, not ends, at hbef. so wateryea
 
 ---
 
+#ACCESS MYSQL CLI (GET PASSWORD FROM MIKE):
+mysql -u root -p
+
+#AT MYSQL CLI:
+use hbef;
+
 
 #GENERATE WEEKLY STREAM FILES (MYSQL)
 
-select * from current where date < '2023-06-01' and site in ('W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W101', 'HBK', 'ML70') order by date into outfile '/var/lib/mysql-files/HubbardBrook_weekly_stream_chemistry_curr.csv' fields terminated by ',' enclosed by '"' lines terminated by '\n';
+select * from current where date < '2024-06-01' and site in ('W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W101', 'HBK', 'ML70') order by date into outfile '/var/lib/mysql-files/HubbardBrook_weekly_stream_chemistry_curr.csv' fields terminated by ',' enclosed by '"' lines terminated by '\n';
 
-select * from historical where date < '2023-06-01' and site in ('W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W101', 'HBK', 'ML70') order by date into outfile '/var/lib/mysql-files/HubbardBrook_weekly_stream_chemistry_hist.csv' fields terminated by ',' enclosed by '"' lines terminated by '\n';
+select * from historical where date < '2024-06-01' and site in ('W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W101', 'HBK', 'ML70') order by date into outfile '/var/lib/mysql-files/HubbardBrook_weekly_stream_chemistry_hist.csv' fields terminated by ',' enclosed by '"' lines terminated by '\n';
 
 
 #GENERATE WEEKLY PRECIP FILES (MYSQL)
 
-select * from current where date < '2023-06-01' and site not in ('W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W101', 'HBK', 'ML70', 'W7-Precip', 'N', 'S') order by date into outfile '/var/lib/mysql-files/HubbardBrook_weekly_precipitation_chemistry_curr.csv' fields terminated by ',' enclosed by '"' lines terminated by '\n';
+select * from current where date < '2024-06-01' and site not in ('W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W101', 'HBK', 'ML70', 'W7-Precip', 'N', 'S') order by date into outfile '/var/lib/mysql-files/HubbardBrook_weekly_precipitation_chemistry_curr.csv' fields terminated by ',' enclosed by '"' lines terminated by '\n';
 
-select * from historical where date < '2023-06-01' and site not in ('W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W101', 'HBK', 'ML70', 'W7-Precip') order by date into outfile '/var/lib/mysql-files/HubbardBrook_weekly_precipitation_chemistry_hist.csv' fields terminated by ',' enclosed by '"' lines terminated by '\n';
+select * from historical where date < '2024-06-01' and site not in ('W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W101', 'HBK', 'ML70', 'W7-Precip') order by date into outfile '/var/lib/mysql-files/HubbardBrook_weekly_precipitation_chemistry_hist.csv' fields terminated by ',' enclosed by '"' lines terminated by '\n';
 
 
 #GET AND FORMAT HEADER ROWS (MYSQL; THIS SECTION SHOULD BE SKIPPABLE)
@@ -35,7 +41,7 @@ gsub(',', '", "',
     "refNo,site,date,timeEST,pH,DIC,spCond,temp,ANC960,ANCMet,gageHt,hydroGraph,flowGageHt,precipCatch,fieldCode,notes,uniqueID,waterYr,datetime,Ca,Mg,K,Na,TMAl,OMAl,Al_ICP,NH4,SO4,NO3,Cl,PO4,DOC,TDN,DON,SiO2,Mn,Fe,F,cationCharge,anionCharge,theoryCond,ionError,duplicate,sampleType,ionBalance,canonical")
 
 
-#ADD HEADER ROWS (BASH; AS ROOT)
+#ADD HEADER ROWS (EXIT MYSQL CLI; RUN THIS IN SHELL, AS ROOT)
 
 cd /var/lib/mysql-files
 
@@ -66,5 +72,5 @@ then use sftp or something else to pull the four CSVs to that local machine.
     get *
 before sending them off, merge current and historical and create the final output
     Rscript edi_upload_prep.R .
-clean up
+clean up /home/mike/misc/edi_prep_files on server for next year
     rm *curr.csv *hist.csv
