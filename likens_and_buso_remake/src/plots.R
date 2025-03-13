@@ -271,24 +271,35 @@ vsfiltA <- vs1 %>%
     filter(waterYr > 1969)
 # lm_rngA <- seq(min(vsfiltA$SO4_NO3, na.rm = TRUE), max(vsfiltA$SO4_NO3, na.rm = TRUE))
 lm_rngA <- seq(20, 175)
-mod <- lm(base_cat ~ SO4_NO3, data = vsfiltA)
-pred <- predict(mod, newdata = data.frame(SO4_NO3 = lm_rngA))
+modA <- lm(base_cat ~ SO4_NO3, data = vsfiltA)
+predA <- predict(modA, newdata = data.frame(SO4_NO3 = lm_rngA))
 
 trend_sA <- tibble(site = rep(site, length = length(lm_rngA)),
                   SO4_NO3 = lm_rngA,
-                  base_cat = unname(pred),
+                  base_cat = unname(predA),
+                  source = rep('trend_s', length = length(lm_rngA)))
+
+vsfiltC <- vs1 %>%
+    left_join(vs2, by = c('site', 'waterYr')) %>%
+    filter(between(waterYr, 1970, 2009))
+modC <- lm(base_cat ~ SO4_NO3, data = vsfiltC)
+predC <- predict(modC, newdata = data.frame(SO4_NO3 = lm_rngA))
+
+trend_sC <- tibble(site = rep(site, length = length(lm_rngA)),
+                  SO4_NO3 = lm_rngA,
+                  base_cat = unname(predC),
                   source = rep('trend_s', length = length(lm_rngA)))
 
 vsfiltB <- vs1 %>%
     left_join(vs2, by = c('site', 'waterYr')) %>%
     filter(between(waterYr, 1965, 1969))
 lm_rngB <- seq(min(vsfiltB$SO4_NO3, na.rm = TRUE), max(vsfiltB$SO4_NO3, na.rm = TRUE))
-mod <- lm(base_cat ~ SO4_NO3, data = vsfiltB)
-pred <- predict(mod, newdata = data.frame(SO4_NO3 = lm_rngB))
+modB <- lm(base_cat ~ SO4_NO3, data = vsfiltB)
+predB <- predict(modB, newdata = data.frame(SO4_NO3 = lm_rngB))
 
 trend_sB <- tibble(site = rep(site, length = length(lm_rngB)),
                   SO4_NO3 = lm_rngB,
-                  base_cat = unname(pred),
+                  base_cat = unname(predB),
                   source = rep('trend_s', length = length(lm_rngB)))
 
 fig1d <- vs1 %>%
@@ -313,6 +324,12 @@ fig1d %>%
               aes(x = SO4_NO3, y = base_cat),
               color = 'black',
               linewidth = 0.3,
+              show.legend = FALSE) +
+    geom_line(data = trend_sC,
+              aes(x = SO4_NO3, y = base_cat),
+              color = 'black',
+              linewidth = 0.3,
+              linetype = 'dashed',
               show.legend = FALSE) +
     scale_color_viridis_c(
         end = 0.85,
@@ -341,7 +358,28 @@ fig1d %>%
     scale_x_continuous(limits = c(0, 200),
                        expand = c(0, 0))
 
-ggsave(paste0('figs/fig1_', site, '.png'), width = 6, height = 5)
+ggsave(paste0('figs/fig1_comparison_', site, '.png'), width = 6, height = 5)
+
+## 3b. comparison of slopes ####
+
+n_boot <- 1000
+slope_diffs <- numeric(n_boot)
+
+for(i in 1:n_boot){
+
+    dA <- vsfiltA[sample(nrow(vsfiltA), replace = TRUE), ]
+    dC <- vsfiltC[sample(nrow(vsfiltC), replace = TRUE), ]
+
+    mA <- lm(base_cat ~ SO4_NO3, data = dA)
+    mC <- lm(base_cat ~ SO4_NO3, data = dC)
+
+    slope_diffs[i] <- coef(mC)[2] - coef(mA)[2]
+}
+
+ci <- quantile(slope_diffs, probs = c(0.025, 0.975))
+
+hist(slope_diffs, breaks = 30, main = "Bootstrap Distribution of Slope Differences", xlab = "Slope Difference")
+abline(v = ci, col = "red", lwd = 2, lty = 2)
 
 
 ## 4. fig 2 (EC) ####
@@ -351,10 +389,14 @@ v_ <- 'spCond'
 spcond_s <- calc_vwc_wateryear(s_official, v_, sample_cutoff = cutoff_s)
 spcond_p <- calc_vwc_wateryear(p_official, v_, sample_cutoff = cutoff_p)
 
-trend_sA <- get_trendline(spcond_s, site = site, lims = c(min(spcond_s$waterYr), 2012), filt = TRUE)
-trend_pA <- get_trendline(spcond_p, site = 'all', lims = c(min(spcond_p$waterYr), 2012), filt = TRUE)
-trend_sB <- get_trendline(spcond_s, site = site, lims = c(2015, 2022), filt = TRUE)
-trend_pB <- get_trendline(spcond_p, site = 'all', lims = c(2010, 2022), filt = TRUE)
+bsln <- min(c(spcond_p$waterYr, spcond_s$waterYr))
+trend_sA <- get_trendline(spcond_s, site = site, lims = c(min(spcond_s$waterYr), 2012), filt = TRUE, baseline = bsln)
+trend_pA <- get_trendline(spcond_p, site = 'all', lims = c(min(spcond_p$waterYr), 2012), filt = TRUE, baseline = bsln)
+trend_sB <- get_trendline(spcond_s, site = site, lims = c(2015, 2022), filt = TRUE, baseline = bsln)
+trend_pB <- get_trendline(spcond_p, site = 'all', lims = c(2010, 2022), filt = TRUE, baseline = bsln)
+# get_trendline(spcond_s, site = site, lims = c(2010, 2022), filt = TRUE, baseline = bsln)
+# get_trendline(spcond_s, site = site, lims = c(1965, 2022), filt = TRUE, baseline = bsln)
+# get_trendline(spcond_p, site = 'all', lims = c(1973, 2022), filt = TRUE, baseline = bsln)
 
 fig2d <- spcond_s %>%
     filter(site == !!site) %>%
@@ -429,8 +471,9 @@ v2 <- 'base_cat'
 vs1 <- calc_vwc_wateryear(s_official, v1, sample_cutoff = cutoff_s)
 vs2 <- calc_vwc_wateryear(s_official, v2, sample_cutoff = cutoff_s)
 
-trend_s1 <- get_trendline(vs1, site = site, lims = c(min(vs1$waterYr), 2040))
-trend_s2 <- get_trendline(vs2, site = site, lims = c(min(vs1$waterYr), 2040))
+bsln <- min(c(vs1$waterYr, vs2$waterYr))
+trend_s1 <- get_trendline(vs1, site = site, lims = c(min(vs1$waterYr), 2040), baseline = bsln)
+trend_s2 <- get_trendline(vs2, site = site, lims = c(min(vs1$waterYr), 2040), baseline = bsln)
 
 vs1 <- convert_to_long(vs1)
 vs2 <- convert_to_long(vs2)
@@ -503,12 +546,14 @@ nit_sul_base <- p_official %>%
 vp1 <- select(nit_sul_base, -base_cat)
 vp2 <- select(nit_sul_base, -SO4_NO3)
 
-trend_p1 <- get_trendline(vp1, site = 'all', lims = c(min(vp1$waterYr), 2040))
-trend_p2 <- get_trendline(vp2, site = 'all', lims = c(min(vp1$waterYr), 2040))
+trend_p1 <- get_trendline(vp1, site = 'all', lims = c(min(vp1$waterYr), 2040), baseline = bsln)
+trend_p1poly <- get_trendline(vp1, site = 'all', lims = c(min(vp1$waterYr), 2040), poly = TRUE, baseline = bsln)
+trend_p2 <- get_trendline(vp2, site = 'all', lims = c(min(vp1$waterYr), 2040), baseline = bsln)
 
 vp1 <- convert_to_long(vp1)
 vp2 <- convert_to_long(vp2)
 trend_p1 <- convert_to_long(trend_p1)
+trend_p1poly <- convert_to_long(trend_p1poly)
 trend_p2 <- convert_to_long(trend_p2)
 
 fig3db <- vp1 %>%
@@ -527,6 +572,12 @@ panelB <- fig3db %>%
     geom_line(data = trend_p1,
               aes(x = waterYr, y = val),
               color = 'red',
+              linewidth = 0.3,
+              show.legend = FALSE) +
+    geom_line(data = trend_p1poly,
+              aes(x = waterYr, y = val),
+              color = 'red',
+              linetype = 'dotted',
               linewidth = 0.3,
               show.legend = FALSE) +
     geom_line(data = trend_p2,
@@ -557,7 +608,7 @@ panelB <- fig3db %>%
 
 panelA + panelB + plot_layout(nrow = 2)#, heights = c(4, 1))
 
-ggsave(paste0('figs/fig3_', site, '.png'), width = 6, height = 8)
+ggsave(paste0('figs/fig3_comparison_', site, '.png'), width = 6, height = 8)
 
 ## 5b. same thing but pH, SO4, NO3 for Amey ####
 
@@ -799,6 +850,8 @@ vars <- list(c(Ca = 'Calcium', Na = 'Sodium', Mg = 'Magnesium', K = 'Potassium')
 
 panel_count <- 0
 panel_list <- list()
+tbl_out <- tibble()
+bsln <- min(c(s_official$waterYr, p_official$waterYr))
 for(vset in vars){
 
     panel_count <- panel_count + 1
@@ -818,6 +871,32 @@ for(vset in vars){
         filter(site == !!site)
 
     write_csv(fig4d1, paste0('data_out/fig4A', panel_count, '_', site, '.csv'))
+
+    for(vvv in names(vset)){
+        qq <- filter(fig4d1, var == !!vvv) %>% mutate(waterYr = waterYr - bsln)
+        smry <- try(summary(lm(val ~ waterYr, data = qq)),
+                    silent = TRUE)
+        if(! inherits(smry, 'try-error')){
+            tbl_row <- tibble(var = vvv,
+                              source = 'stream',
+                              slope = smry$coefficients[2, 1],
+                              intercept = smry$coefficients[1, 1],
+                              R2 = smry$adj.r.squared)
+            tbl_out <- bind_rows(tbl_out, tbl_row)
+        }
+
+        qq2 <- filter(vp, var == !!vvv) %>% mutate(waterYr = waterYr - bsln)
+        smry <- try(summary(lm(val ~ waterYr, data = qq2)),
+                    silent = TRUE)
+        if(! inherits(smry, 'try-error')){
+            tbl_row <- tibble(var = vvv,
+                              source = 'precip',
+                              slope = smry$coefficients[2, 1],
+                              intercept = smry$coefficients[1, 1],
+                              R2 = smry$adj.r.squared)
+            tbl_out <- bind_rows(tbl_out, tbl_row)
+        }
+    }
 
     panel_list[[paste0('A', panel_count)]] <- fig4d1 %>%
         ggplot(aes(x = waterYr,
@@ -873,6 +952,10 @@ panel_list$A1 + panel_list$B1 + panel_list$A2 + panel_list$B2 +
     panel_list$A3 + panel_list$B3 +
     plot_layout(nrow = 3, byrow = TRUE, axes = 'collect')
 
+# tbl_out %>%
+#     arrange(source) %>%
+#     write_csv('/tmp/zz.csv')
+
 ggsave(paste0('figs/fig4_', site, '.png'), width = 9, height = 12)
 
 ## 7. fig 5 (mainstem annual EC) ####
@@ -881,14 +964,19 @@ v_ <- 'spCond'
 
 spcond_s <- calc_mean_year(s, v_, sample_cutoff = cutoff_s)
 
+bsln <- min(spcond_s$waterYr)
 trend_hbk <- get_trendline(spcond_s, site = 'HBK',
-                           lims = c(min(spcond_s$waterYr[spcond_s$site == 'HBK']), 2040))
+                           lims = c(min(spcond_s$waterYr[spcond_s$site == 'HBK']), 2040),
+                           baseline = bsln)
 trend_w3 <- get_trendline(spcond_s, site = 'W3',
-                           lims = c(min(spcond_s$waterYr[spcond_s$site == 'W3']), 2040))
+                          lims = c(min(spcond_s$waterYr[spcond_s$site == 'W3']), 2040),
+                          baseline = bsln)
 trend_w6 <- get_trendline(spcond_s, site = 'W6',
-                           lims = c(min(spcond_s$waterYr[spcond_s$site == 'W6']), 2040))
+                          lims = c(min(spcond_s$waterYr[spcond_s$site == 'W6']), 2040),
+                          baseline = bsln)
 trend_w9 <- get_trendline(spcond_s, site = 'W9',
-                           lims = c(min(spcond_s$waterYr[spcond_s$site == 'W9']), 2040))
+                          lims = c(min(spcond_s$waterYr[spcond_s$site == 'W9']), 2040),
+                          baseline = bsln)
 
 spcond_s <- rename(spcond_s, year = waterYr)
 trend_hbk <- rename(trend_hbk, year = waterYr)

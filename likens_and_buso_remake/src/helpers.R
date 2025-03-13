@@ -180,19 +180,30 @@ extend_x_axis <- function(d, to){
     tidyr::complete(d, site, waterYr = 2010:to)
 }
 
-get_trendline <- function(d, site, lims, filt = FALSE){
+get_trendline <- function(d, site, lims, filt = FALSE, poly = FALSE, smry = TRUE, baseline = NULL){
     #filt: if TRUE, filter the dataset by lims; otherwise regress on all data and
     #just plot within the lims
 
     if(filt) d <- filter(d, between(waterYr, lims[1], lims[2]))
 
-    v_ <- setdiff(colnames(d), c('site', 'waterYr', 'n', 'source'))
+    v_ <- setdiff(colnames(d), c('site', 'waterYr', 'n', 'source', 'var'))
     yrs <- seq(lims[1], lims[2])
+    if(! is.null(baseline)) yrs <- yrs - baseline
     d <- filter(d, site == !!site)
     src <- ifelse(all(d$source == 'Precipitation'), 'trend_p', 'trend_s')
     fmla <- as.formula(paste(v_, "~ waterYr"))
 
+    if(poly){
+        # fmla <- update(fmla, . ~ poly(waterYr, 2, raw = TRUE))
+        fmla <- as.formula(paste(deparse(fmla[[2]]), "~", "waterYr + I(waterYr^2)"))
+    }
+
+    if(! is.null(baseline)){
+        d$waterYr <- d$waterYr - baseline
+    }
+
     mod <- lm(fmla, data = d)
+    if(smry) print(summary(mod))
     pred <- predict(mod, newdata = data.frame(waterYr = yrs))
 
     out <- tibble(site = rep(site, length = length(yrs)),
@@ -200,6 +211,8 @@ get_trendline <- function(d, site, lims, filt = FALSE){
                   v_ = unname(pred),
                   source = rep(src, length = length(yrs))) %>%
         rename(!!v_ := v_)
+
+    if(! is.null(baseline)) out$waterYr <- out$waterYr + baseline
 
     return(out)
 }
