@@ -1,9 +1,9 @@
 this contains copy-paste code snippets for use in mysql, and in bash, on the hbef server (165.22.183.347)
-lines that are merely informative have a leading "#" below, as if they were code comments, though that doesn't mean you can "run" this file.
+lines that are merely informative have a leading "#", as if they were code comments, though that doesn't mean you can "run" this file.
 this is used once per year, when we update the hubbard brook data on the EDI portal
 
 ATTENTION: you'll need to manually update some of the dates before using the code snippets below. 
-wateryears are apparently named for their starts, not ends, at hbef. so wateryear 2019 starts on june 1 2019 and ends on may 31 2020
+wateryears are named for their starts, not ends, at hbef. so wateryear 2019 starts on june 1 2019 and ends on may 31 2020
 
 ---
 
@@ -16,16 +16,16 @@ use hbef;
 
 #GENERATE WEEKLY STREAM FILES (MYSQL)
 
-select * from current where date < '2024-06-01' and site in ('W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W101', 'HBK', 'ML70') order by date into outfile '/var/lib/mysql-files/HubbardBrook_weekly_stream_chemistry_curr.csv' fields terminated by ',' enclosed by '"' lines terminated by '\n';
+select * from current where date < '2025-06-01' and site in ('W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W101', 'HBK', 'ML70') order by date into outfile '/var/lib/mysql-files/HubbardBrook_weekly_stream_chemistry_curr.csv' fields terminated by ',' enclosed by '"' lines terminated by '\n';
 
-select * from historical where date < '2024-06-01' and site in ('W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W101', 'HBK', 'ML70') order by date into outfile '/var/lib/mysql-files/HubbardBrook_weekly_stream_chemistry_hist.csv' fields terminated by ',' enclosed by '"' lines terminated by '\n';
+select * from historical where date < '2025-06-01' and site in ('W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W101', 'HBK', 'ML70') order by date into outfile '/var/lib/mysql-files/HubbardBrook_weekly_stream_chemistry_hist.csv' fields terminated by ',' enclosed by '"' lines terminated by '\n';
 
 
 #GENERATE WEEKLY PRECIP FILES (MYSQL)
 
-select * from current where date < '2024-06-01' and site not in ('W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W101', 'HBK', 'ML70', 'W7-Precip', 'N', 'S') order by date into outfile '/var/lib/mysql-files/HubbardBrook_weekly_precipitation_chemistry_curr.csv' fields terminated by ',' enclosed by '"' lines terminated by '\n';
+select * from current where date < '2025-06-01' and site not in ('W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W101', 'HBK', 'ML70', 'W7-Precip', 'N', 'S') order by date into outfile '/var/lib/mysql-files/HubbardBrook_weekly_precipitation_chemistry_curr.csv' fields terminated by ',' enclosed by '"' lines terminated by '\n';
 
-select * from historical where date < '2024-06-01' and site not in ('W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W101', 'HBK', 'ML70', 'W7-Precip') order by date into outfile '/var/lib/mysql-files/HubbardBrook_weekly_precipitation_chemistry_hist.csv' fields terminated by ',' enclosed by '"' lines terminated by '\n';
+select * from historical where date < '2025-06-01' and site not in ('W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W101', 'HBK', 'ML70', 'W7-Precip') order by date into outfile '/var/lib/mysql-files/HubbardBrook_weekly_precipitation_chemistry_hist.csv' fields terminated by ',' enclosed by '"' lines terminated by '\n';
 
 
 #GET AND FORMAT HEADER ROWS (MYSQL; THIS SECTION SHOULD BE SKIPPABLE)
@@ -64,7 +64,16 @@ chown mike:mike *
 
 so now there are 4 files. two precip files and two stream files. these will eventually become just two files, one for precip and one for stream.
 
-move any local versions of those final two files into a previous_versions directory (or something similar) with an incremented ID number (e.g. HubbardBrook_weekly_precipitation_chemistry3.csv). you can delete the local versions of the 4 prerequisite (hist and curr) files.
+move any local versions of those final two files into a previous_versions directory (or something similar) with an incremented ID number, e.g. (change the integer just before ".csv"):
+
+mv HubbardBrook_weekly_precipitation_chemistry.csv previous_versions/HubbardBrook_weekly_precipitation_chemistry6.csv
+mv HubbardBrook_weekly_stream_chemistry.csv previous_versions/HubbardBrook_weekly_stream_chemistry6.csv
+
+you can delete the local versions of the 4 prerequisite (hist and curr) files (making sure you're NOT in the previous_versions directory) with:
+
+rm HubbardBrook_weekly_*
+
+
 then use sftp or something else to pull the four CSVs to that local machine.
     [on local machine] cd /path/to/hbef/hbef_misc/edi_upload
     sftp mike@165.22.183.347
