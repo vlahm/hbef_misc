@@ -167,6 +167,41 @@ calc_mean_year <- function(d, var, sample_cutoff = NULL){
     return(d)
 }
 
+calc_mean_wateryear <- function(d, var, sample_cutoff = NULL){
+
+    #sample_cutoff: numeric or NULL. remove water years with < sample_cutoff sample
+    #   days. if NULL, this parameter is ignored.
+
+    vvar <- intersect(c('precip', 'discharge', 'flow_mm'), colnames(d))
+
+    d <- d %>%
+        select(site, waterYr, !!var) %>%
+        filter(! if_any(!!var, is.na)) %>%
+        group_by(site, waterYr) %>%
+        summarize(!!sym(var) := mean(!!sym(var), na.rm = TRUE),
+                  n = n(),
+                  .groups = 'drop') %>%
+        arrange(waterYr)
+
+    d$source <- ifelse(vvar == 'precip', 'Precipitation', 'Streamwater')
+
+    low_n <- which(d$n < sample_cutoff)
+    if(length(low_n)){
+        z <- ifelse(is.null(sample_cutoff), 'keeping', 'dropping')
+        print(paste(z, 'years with <', sample_cutoff, 'samples:'))
+        print(arrange(d[low_n, ], site, waterYr),
+              n = 100)
+    }
+
+    if(! is.null(sample_cutoff)){
+        d <- filter(d, n >= sample_cutoff)
+    }
+
+    d <- rename(d, waterYr = waterYr) #for compatibility with get_trendline()
+
+    return(d)
+}
+
 convert_to_long <- function(d){
 
     v_ <- setdiff(colnames(d), c('site', 'waterYr', 'n', 'source'))

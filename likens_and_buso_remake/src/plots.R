@@ -8,6 +8,7 @@
 #start by collapsing code sections with Alt+o (Linux, Windows) or Cmd+Opt+o (Mac)
 setwd('~/git/hbef/hbef_misc/likens_and_buso_remake/')
 
+library(segmented)  #for breakpoint analysis
 library(tidyverse)
 library(lubridate)
 library(ggplot2)
@@ -44,6 +45,10 @@ s_official <- read_csv('data_in/ws6_stream_monthly_flux_gHa.csv', show_col_types
 dir.create('data_in', showWarnings = FALSE)
 dir.create('data_out', showWarnings = FALSE)
 dir.create('figs', showWarnings = FALSE)
+dir.create('figs/breakpoints/precip_1bp', showWarnings = FALSE, recursive = TRUE)
+dir.create('figs/breakpoints/stream_1bp', showWarnings = FALSE)
+dir.create('figs/breakpoints/precip_multi_bp', showWarnings = FALSE)
+dir.create('figs/breakpoints/stream_multi_bp', showWarnings = FALSE)
 
 chem_urls <- get_edi_url(prodcode = 208, version = 11)
 discharge_urls <- get_edi_url(prodcode = 1, version = 17)
@@ -91,8 +96,8 @@ for(i in 1:nrow(all_urls)){
 #drop cols that won't be used (simplifies unit conversion)
 #pH and pHmetrohm are merged and converted to [H ion]
 #ANC960 and ANCMet are merged
-unused_vars <- c('DIC', 'temp', 'ANC960', 'ANCMet', 'TMAl', 'OMAl',
-                 'Al_ICP', 'Al_ferron', 'DOC', 'TDN', 'DON', 'ionError',
+unused_vars <- c('temp', 'ANC960', 'ANCMet', 'TMAl', 'OMAl',
+                 'Al_ICP', 'Al_ferron', 'TDN', 'DON', 'ionError',
                  'ionBalance', 'pHmetrohm', 'SiO2', 'PO4', 'cationCharge',
                  'anionCharge')
 
@@ -245,7 +250,7 @@ s_official <- s_official %>%
     rename_with(~sub('_flux', '', .)) %>%
     mutate(date = as.Date(paste0(Year_Month, '-01'))) %>%
     select(site, date, waterYr, flow_mm, SpecCond_volwt, ANC_volwt, Ca,
-           Mg, K, Na, NH4, SO4, NO3, Cl, Mn, Fe, `F`, H, pH = pH_volwt) %>%
+           Mg, K, Na, NH4, SO4, NO3, Cl, Mn, Fe, `F`, H, DIC, DOC, pH = pH_volwt) %>%
     mutate(across(SpecCond_volwt:pH, ~if_else(. < -800, NA_real_, .)),
            across(Ca:H, ~. / flow_mm / 10)) %>%
     rename(spCond = SpecCond_volwt, ANC = ANC_volwt)
@@ -847,6 +852,7 @@ l_pos <- c(0.8, 0.8) #legend position
 vars <- list(c(Ca = 'Calcium', Na = 'Sodium', Mg = 'Magnesium', K = 'Potassium'),
              c(SO4 = 'Sulfate', Cl = 'Chloride', NO3 = 'Nitrate'),
              c(H = 'Hydrogen Ion', ANC = 'ANC'))
+             # c(DIC = 'DIC', DOC = 'DOC'))
 
 panel_count <- 0
 panel_list <- list()
@@ -858,11 +864,19 @@ for(vset in vars){
     vs <- vp <- trend_s <- trend_p <- tibble()
     for(v_ in names(vset)){
 
-        vs_ <- calc_vwc_wateryear(s_official, v_, sample_cutoff = cutoff_s)
+        if(v_ == 'DOC'){
+            vs_ <- calc_mean_wateryear(s_official, v_, sample_cutoff = cutoff_s)
+        } else {
+            vs_ <- calc_vwc_wateryear(s_official, v_, sample_cutoff = cutoff_s)
+        }
         vs <- bind_rows(vs, convert_to_long(vs_))
 
         if(v_ != 'ANC'){
-            vp_ <- calc_vwc_wateryear(p_official, v_, sample_cutoff = cutoff_p)
+            if(v_ == 'DOC'){
+                vp_ <- calc_mean_wateryear(p_official, v_, sample_cutoff = cutoff_p)
+            } else {
+                vp_ <- calc_vwc_wateryear(p_official, v_, sample_cutoff = cutoff_p)
+            }
             vp <- bind_rows(vp, convert_to_long(vp_))
         }
     }
@@ -1036,3 +1050,393 @@ fig5d %>%
                        expand = c(0, 0))
 
 ggsave('figs/fig5.png', width = 8, height = 5)
+
+## 8. breakpoint analyses (stream, monthly) [OBSOLETE] ####
+
+vars_included <- setdiff(colnames(s_official), c('site', 'date', 'waterYr', 'flow_mm'))
+s_bp_table <- tibble()
+s_multi_bp <- list()
+
+for(v_ in vars_included){
+
+    first_non_na <- Position(\(x) ! is.na(x), s_official[[v_]])
+    last_non_na <- Position(\(x) ! is.na(x), s_official[[v_]], right = TRUE)
+
+    min_date <- s_official$date[first_non_na]
+    max_date <- s_official$date[last_non_na]
+
+    s_seg <- s_official %>%
+        slice(first_non_na:nrow(s_official)) %>%
+        mutate(date_int = as.numeric(date - !!min_date)) %>%
+        select(!!v_, date, date_int)
+
+    lm_mod <- lm(reformulate('date_int', v_), data = s_seg)
+    seg1 <- segmented(lm_mod, seg.Z = ~date_int, npsi = 1)
+    seg2 <- segmented(lm_mod, seg.Z = ~date_int, npsi = 2)
+    seg3 <- segmented(lm_mod, seg.Z = ~date_int, npsi = 3)
+
+    png(paste0('figs/breakpoints/stream_1bp/', v_, '.png'))
+    plot(s_seg$date_int, s_seg[[v_]], pch = 16, col = "grey",
+         xlab = '', ylab = v_, xaxt = 'n')
+    plot(seg1, add = TRUE)
+    s_axis <- s_seg %>%
+        group_by(floor_date(date, '10 year')) %>%
+        slice(1) %>%
+        mutate(date = strftime(date, '%e/%-m/%y')) %>%
+        ungroup()
+    axis(1, s_axis$date_int, s_axis$date, srt = 45)
+    # plot(seg2, add = TRUE)
+    dev.off()
+
+    breakpoint <- seg1$psi[, "Est."]
+    break_date <- min_date + breakpoint
+    bp_SE_days <- seg1$psi[, "St.Err"]
+
+    bp_supported_BIC <- diff(BIC(lm_mod, seg1)$BIC) < 0
+    multi_bp2 <- diff(BIC(seg1, seg2)$BIC) < 0
+    multi_bp3 <- diff(BIC(seg1, seg3)$BIC) < 0
+    multi_bp <- multi_bp2 | multi_bp3
+    bp_supported_davies <- davies.test(lm_mod, ~date_int, k = 100)$p.value < 0.05
+    if(multi_bp){
+        n_bp <- c(2, 3)[which.min(BIC(seg1, seg2)$BIC)]
+        # warning(n_bp, ' breakpoints plausible for ', v_)
+        s_multi_bp[[v_]] <- n_bp
+    }
+    # bp_supported_davies <- davies.test(seg2, ~date_int)$p.value < 0.05
+
+    intc <- round(seg1$coefficients[1], 3)
+    slope1 <- round(seg1$coefficients[2], 3)
+    slope2 <- round(seg1$coefficients[2] + seg1$coefficients[3], 3)
+
+    eqn1 <- sprintf('y = %.3f %.3f', intc, slope1)
+    eqn2 <- sprintf('y = %.3f %+.3f', intc, slope2)
+
+    bp_row <- tibble(solute = v_,
+                     period1 = paste(min_date, '-', break_date),
+                     period2 = paste(break_date, '-', max_date),
+                     eqn1 = eqn1,
+                     eqn2 = eqn2,
+                     breakpoint = break_date,
+                     bp_SE_days = bp_SE_days,
+                     bp_supported_BIC = bp_supported_BIC,
+                     bp_supported_davies = bp_supported_davies,
+                     multiple_bp_support = multi_bp)
+
+    s_bp_table <- s_bp_table %>%
+        bind_rows(bp_row)
+}
+
+for(v_ in s_bp_table[s_bp_table$multiple_bp_support, ]$solute){
+
+    first_non_na <- Position(\(x) ! is.na(x), s_official[[v_]])
+    last_non_na <- Position(\(x) ! is.na(x), s_official[[v_]], right = TRUE)
+
+    min_date <- s_official$date[first_non_na]
+    max_date <- s_official$date[last_non_na]
+
+    s_seg <- s_official %>%
+        slice(first_non_na:nrow(s_official)) %>%
+        mutate(date_int = as.numeric(date - !!min_date)) %>%
+        select(!!v_, date, date_int)
+
+    n_bp <- s_multi_bp[[v_]]
+    lm_mod <- lm(reformulate('date_int', v_), data = s_seg)
+    seg1 <- segmented(lm_mod, seg.Z = ~date_int, npsi = n_bp)
+
+    png(paste0('figs/breakpoints/stream_multi_bp/', v_, '.png'))
+    plot(s_seg$date_int, s_seg[[v_]], pch = 16, col = "grey",
+         xlab = '', ylab = v_, xaxt = 'n')
+    plot(seg1, add = TRUE)
+    s_axis <- s_seg %>%
+        group_by(floor_date(date, '10 year')) %>%
+        slice(1) %>%
+        mutate(date = strftime(date, '%e/%-m/%y')) %>%
+        ungroup()
+    axis(1, s_axis$date_int, s_axis$date, srt = 45)
+    # plot(seg2, add = TRUE)
+    dev.off()
+
+    # breakpoint <- seg1$psi[, "Est."]
+    # break_date <- min_date + breakpoint
+    # bp_SE_days <- seg1$psi[, "St.Err"]
+    #
+    # intc <- round(seg1$coefficients[1], 3)
+    # slope1 <- round(seg1$coefficients[2], 3)
+    # slope2 <- round(seg1$coefficients[2] + seg1$coefficients[3], 3)
+    #
+    # eqn1 <- sprintf('y = %.3f %.3f', intc, slope1)
+    # eqn2 <- sprintf('y = %.3f %+.3f', intc, slope2)
+    #
+    # bp_row <- tibble(solute = v_,
+    #                  period1 = paste(min_date, '-', break_date),
+    #                  period2 = paste(break_date, '-', max_date),
+    #                  eqn1 = eqn1,
+    #                  eqn2 = eqn2,
+    #                  breakpoint = break_date,
+    #                  bp_SE_days = bp_SE_days,
+    #                  bp_supported_BIC = bp_supported_BIC,
+    #                  bp_supported_davies = bp_supported_davies,
+    #                  multiple_bp_support = multi_bp)
+    #
+    # s_bp_table <- s_bp_table %>%
+    #     bind_rows(bp_row)
+}
+
+## 8b. breakpoint analyses (stream, wateryear) ####
+
+vars_included <- setdiff(colnames(s_official), c('site', 'date', 'waterYr', 'flow_mm'))
+s_bp_table <- tibble()
+s_multi_bp <- list()
+
+s_official <- s_official %>%
+    group_by(waterYr) %>%
+    summarize(across(spCond:base_cat, ~mean(., na.rm = TRUE)),
+              .groups = 'drop') %>%
+    rename(date = waterYr)
+
+for(v_ in vars_included){
+
+    first_non_na <- Position(\(x) ! is.na(x), s_official[[v_]])
+    last_non_na <- Position(\(x) ! is.na(x), s_official[[v_]], right = TRUE)
+
+    min_date <- s_official$date[first_non_na]
+    max_date <- s_official$date[last_non_na]
+
+    s_seg <- s_official %>%
+        slice(first_non_na:nrow(s_official)) %>%
+        mutate(date_int = as.numeric(date - !!min_date)) %>%
+        select(!!v_, date, date_int)
+
+    lm_mod <- lm(reformulate('date_int', v_), data = s_seg)
+    seg1 <- segmented(lm_mod, seg.Z = ~date_int, npsi = 1)
+    seg2 <- segmented(lm_mod, seg.Z = ~date_int, npsi = 2)
+    seg3 <- try(segmented(lm_mod, seg.Z = ~date_int, npsi = 3), silent = TRUE)
+
+    png(paste0('figs/breakpoints/stream_1bp/', v_, '.png'))
+    plot(s_seg$date_int, s_seg[[v_]], pch = 16, col = "grey",
+         xlab = '', ylab = v_, xaxt = 'n')
+    plot(seg1, add = TRUE)
+    s_axis <- s_seg %>%
+        filter(date %% 10 == 0)
+    axis(1, s_axis$date_int, s_axis$date)
+    # plot(seg2, add = TRUE)
+    dev.off()
+
+    breakpoint <- seg1$psi[, "Est."]
+    break_date <- round(min_date + breakpoint, 2)
+    bp_SE_yrs <- seg1$psi[, "St.Err"]
+
+    bp_supported_BIC <- diff(BIC(lm_mod, seg1)$BIC) < 0
+    if(inherits(seg2, 'segmented')){
+        multi_bp2 <- diff(BIC(seg1, seg2)$BIC) < 0
+    } else {
+        multi_bp2 <- FALSE
+    }
+    if(! inherits(seg3, 'try-error') && inherits(seg3, 'segmented')){
+        multi_bp3 <- diff(BIC(seg1, seg3)$BIC) < 0
+    } else {
+        multi_bp3 <- FALSE
+    }
+    multi_bp <- multi_bp2 | multi_bp3
+    bp_supported_davies <- davies.test(lm_mod, ~date_int, k = 100)$p.value < 0.05
+    if(multi_bp){
+        n_bp <- c(2, 3)[which.min(BIC(seg2, seg3)$BIC)]
+        # warning(n_bp, ' breakpoints plausible for ', v_)
+        s_multi_bp[[v_]] <- n_bp
+    }
+    # bp_supported_davies <- davies.test(seg2, ~date_int)$p.value < 0.05
+
+    intc <- round(seg1$coefficients[1], 3)
+    slope1 <- round(seg1$coefficients[2], 3)
+    slope2 <- round(seg1$coefficients[3], 3)
+    # slope2 <- round(seg1$coefficients[2] + seg1$coefficients[3], 3)
+
+    eqn1 <- sprintf('y = %.3f %+.3fx %+.3f(x-%.3f) + ϵ', intc, slope1, slope2, round(breakpoint, 3))
+    # eqn2 <- sprintf('y = %.3f %+.3f', intc, slope2)
+
+    bp_row <- tibble(solute = v_,
+                     period1 = paste(min_date, '-', round(break_date, 0)),
+                     period2 = paste(round(break_date, 0), '-', max_date),
+                     breakpoint = round(break_date, 0),
+                     eqn = eqn1,
+                     # eqn2 = eqn2,
+                     bp_SE_yrs = bp_SE_yrs,
+                     bp_supported_BIC = bp_supported_BIC,
+                     bp_supported_davies = bp_supported_davies,
+                     multiple_bp_support = multi_bp)
+
+    s_bp_table <- s_bp_table %>%
+        bind_rows(bp_row)
+}
+
+write_csv(s_bp_table, 'data_out/single_breakpoint_table_stream.csv')
+
+for(v_ in s_bp_table[s_bp_table$multiple_bp_support, ]$solute){
+
+    first_non_na <- Position(\(x) ! is.na(x), s_official[[v_]])
+    last_non_na <- Position(\(x) ! is.na(x), s_official[[v_]], right = TRUE)
+
+    min_date <- s_official$date[first_non_na]
+    max_date <- s_official$date[last_non_na]
+
+    s_seg <- s_official %>%
+        slice(first_non_na:nrow(s_official)) %>%
+        mutate(date_int = as.numeric(date - !!min_date)) %>%
+        select(!!v_, date, date_int)
+
+    n_bp <- s_multi_bp[[v_]]
+    lm_mod <- lm(reformulate('date_int', v_), data = s_seg)
+    seg1 <- segmented(lm_mod, seg.Z = ~date_int, npsi = n_bp)
+
+    png(paste0('figs/breakpoints/stream_multi_bp/', v_, '.png'))
+    plot(s_seg$date_int, s_seg[[v_]], pch = 16, col = "grey",
+         xlab = '', ylab = v_, xaxt = 'n')
+    plot(seg1, add = TRUE)
+    s_axis <- s_seg %>%
+        filter(date %% 10 == 0)
+    axis(1, s_axis$date_int, s_axis$date)
+    # plot(seg2, add = TRUE)
+    dev.off()
+
+    # breakpoint <- seg1$psi[, "Est."]
+    # break_date <- min_date + breakpoint
+    # bp_SE_days <- seg1$psi[, "St.Err"]
+    #
+    # intc <- round(seg1$coefficients[1], 3)
+    # slope1 <- round(seg1$coefficients[2], 3)
+    # slope2 <- round(seg1$coefficients[2] + seg1$coefficients[3], 3)
+    #
+    # eqn1 <- sprintf('y = %.3f %.3f', intc, slope1)
+    # eqn2 <- sprintf('y = %.3f %+.3f', intc, slope2)
+    #
+    # bp_row <- tibble(solute = v_,
+    #                  period1 = paste(min_date, '-', break_date),
+    #                  period2 = paste(break_date, '-', max_date),
+    #                  eqn1 = eqn1,
+    #                  eqn2 = eqn2,
+    #                  breakpoint = break_date,
+    #                  bp_SE_days = bp_SE_days,
+    #                  bp_supported_BIC = bp_supported_BIC,
+    #                  bp_supported_davies = bp_supported_davies,
+    #                  multiple_bp_support = multi_bp)
+    #
+    # s_bp_table <- s_bp_table %>%
+    #     bind_rows(bp_row)
+}
+
+## 8c. breakpoint analyses (precip, wateryear) ####
+
+vars_included <- setdiff(colnames(p_official), c('site', 'date', 'waterYr', 'flow_mm', 'precip'))
+p_bp_table <- tibble()
+p_multi_bp <- list()
+
+p_official <- p_official %>%
+    group_by(waterYr) %>%
+    summarize(across(spCond:base_cat, ~mean(., na.rm = TRUE)),
+              .groups = 'drop') %>%
+    rename(date = waterYr)
+
+for(v_ in vars_included){
+
+    first_non_na <- Position(\(x) ! is.na(x), p_official[[v_]])
+    last_non_na <- Position(\(x) ! is.na(x), p_official[[v_]], right = TRUE)
+
+    min_date <- p_official$date[first_non_na]
+    max_date <- p_official$date[last_non_na]
+
+    s_seg <- p_official %>%
+        slice(first_non_na:nrow(p_official)) %>%
+        mutate(date_int = as.numeric(date - !!min_date)) %>%
+        select(!!v_, date, date_int)
+
+    lm_mod <- lm(reformulate('date_int', v_), data = s_seg)
+    seg1 <- try(segmented(lm_mod, seg.Z = ~date_int, npsi = 1), silent = TRUE)
+    if(inherits(seg1, 'try-error')) next
+    seg2 <- segmented(lm_mod, seg.Z = ~date_int, npsi = 2)
+    seg3 <- try(segmented(lm_mod, seg.Z = ~date_int, npsi = 3), silent = TRUE)
+
+    png(paste0('figs/breakpoints/precip_1bp/', v_, '.png'))
+    plot(s_seg$date_int, s_seg[[v_]], pch = 16, col = "grey",
+         xlab = '', ylab = v_, xaxt = 'n')
+    plot(seg1, add = TRUE)
+    s_axis <- s_seg %>%
+        filter(date %% 10 == 0)
+    axis(1, s_axis$date_int, s_axis$date)
+    # plot(seg2, add = TRUE)
+    dev.off()
+
+    breakpoint <- seg1$psi[, "Est."]
+    break_date <- round(min_date + breakpoint, 2)
+    bp_SE_yrs <- seg1$psi[, "St.Err"]
+
+    bp_supported_BIC <- diff(BIC(lm_mod, seg1)$BIC) < 0
+    if(inherits(seg2, 'segmented')){
+        multi_bp2 <- diff(BIC(seg1, seg2)$BIC) < 0
+    } else {
+        multi_bp2 <- FALSE
+    }
+    if(! inherits(seg3, 'try-error') && inherits(seg3, 'segmented')){
+        multi_bp3 <- diff(BIC(seg1, seg3)$BIC) < 0
+    } else {
+        multi_bp3 <- FALSE
+    }
+    multi_bp <- multi_bp2 | multi_bp3
+    bp_supported_davies <- davies.test(lm_mod, ~date_int, k = 100)$p.value < 0.05
+    if(multi_bp){
+        n_bp <- c(2, 3)[which.min(BIC(seg2, seg3)$BIC)]
+        # warning(n_bp, ' breakpoints plausible for ', v_)
+        p_multi_bp[[v_]] <- n_bp
+    }
+    # bp_supported_davies <- davies.test(seg2, ~date_int)$p.value < 0.05
+
+    intc <- round(seg1$coefficients[1], 3)
+    slope1 <- round(seg1$coefficients[2], 3)
+    slope2 <- round(seg1$coefficients[3], 3)
+    # slope2 <- round(seg1$coefficients[2] + seg1$coefficients[3], 3)
+
+    eqn1 <- sprintf('y = %.3f %+.3fx %+.3f(x-%.3f) + ϵ', intc, slope1, slope2, round(breakpoint, 3))
+    # eqn2 <- sprintf('y = %.3f %+.3f', intc, slope2)
+
+    bp_row <- tibble(solute = v_,
+                     period1 = paste(min_date, '-', round(break_date, 0)),
+                     period2 = paste(round(break_date, 0), '-', max_date),
+                     breakpoint = round(break_date, 0),
+                     eqn = eqn1,
+                     # eqn2 = eqn2,
+                     bp_SE_yrs = bp_SE_yrs,
+                     bp_supported_BIC = bp_supported_BIC,
+                     bp_supported_davies = bp_supported_davies,
+                     multiple_bp_support = multi_bp)
+
+    p_bp_table <- p_bp_table %>%
+        bind_rows(bp_row)
+}
+
+write_csv(p_bp_table, 'data_out/single_breakpoint_table_precip.csv')
+
+for(v_ in p_bp_table[p_bp_table$multiple_bp_support, ]$solute){
+
+    first_non_na <- Position(\(x) ! is.na(x), p_official[[v_]])
+    last_non_na <- Position(\(x) ! is.na(x), p_official[[v_]], right = TRUE)
+
+    min_date <- p_official$date[first_non_na]
+    max_date <- p_official$date[last_non_na]
+
+    s_seg <- p_official %>%
+        slice(first_non_na:nrow(p_official)) %>%
+        mutate(date_int = as.numeric(date - !!min_date)) %>%
+        select(!!v_, date, date_int)
+
+    n_bp <- p_multi_bp[[v_]]
+    lm_mod <- lm(reformulate('date_int', v_), data = s_seg)
+    seg1 <- segmented(lm_mod, seg.Z = ~date_int, npsi = n_bp)
+
+    png(paste0('figs/breakpoints/precip_multi_bp/', v_, '.png'))
+    plot(s_seg$date_int, s_seg[[v_]], pch = 16, col = "grey",
+         xlab = '', ylab = v_, xaxt = 'n')
+    plot(seg1, add = TRUE)
+    s_axis <- s_seg %>%
+        filter(date %% 10 == 0)
+    axis(1, s_axis$date_int, s_axis$date)
+    dev.off()
+}
