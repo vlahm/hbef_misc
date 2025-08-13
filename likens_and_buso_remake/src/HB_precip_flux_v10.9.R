@@ -26,7 +26,7 @@ setwd(current_path)
 ######Change these prior to running the program#################################
 
 #Manually set end date
-end_date <- "2022-06-01"
+end_date <- "2024-06-01"
 
 #Manually select watershed
 watershed <- "6"
@@ -60,15 +60,16 @@ if(watershed==7){
 # infile1 <- tempfile()
 # try(download.file(inUrl1,infile1,method="curl"))
 # if (is.na(file.size(infile1))) download.file(inUrl1,infile1,method="auto")
-
-infile1 <- 'ws6_precip.csv'
-dt1 <-read.csv(infile1,header=F
+#
+# infile1 <- 'ws6_precip.csv'
+dt1 <-read.csv('~/Downloads/HBEF_DailyStreamflow_1956-2024.csv',header=F
                ,skip=1
                ,sep=","
                , col.names=c(
                  "DATE",
                  "watershed",
-                 "Precip"    ), check.names=TRUE)
+                 "Precip", 'flag'    ), check.names=TRUE)
+dt1$flag = NULL
 #
 # unlink(infile1)
 
@@ -506,7 +507,7 @@ head(precip_chem_miss_passed)
 tail(precip_chem_miss_passed)
 
 # next convert chemistry between sample dates to appropriate values
-precip_chem_miss_passed_filled <- imputeTS::na_locf(precip_chem_miss_passed, option = 'nocb')
+# precip_chem_miss_passed_filled <- imputeTS::na_locf(precip_chem_miss_passed, option = 'nocb')
 precip_chem_miss_passed_filled <- fill_NAs(precip_chem_miss_passed)
 
 precip_dailyChemConc_filled <-
