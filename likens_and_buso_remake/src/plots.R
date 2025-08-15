@@ -256,7 +256,7 @@ p_official <- p_official %>%
     # mutate(date = as.Date(paste0(Year_Month, '-01'))) %>%
     mutate(date = as.Date(paste0(WaterYear, '-06-01'))) %>%
     select(site, date, waterYr = WaterYear, precip = precip_mm, spCond = SpecCond, Ca,
-           Mg, K, Na, NH4, SO4, NO3, Cl, Mn, Fe, `F`, H, pH) %>%
+           Mg, K, Na, NH4, SO4, NO3, Cl, Mn, Fe, `F`, H, DOC, pH) %>%
     mutate(across(precip:pH, ~if_else(. < -800, NA_real_, .)))
 
 p_bak <- p_official
@@ -280,24 +280,24 @@ s_official <- s_official %>%
 
 so_bak <- s_official
 s_official <- convert_to_equivalents(select(s_official, -pH))
-s_official <- bind_cols(s_official, select(s_bak, pH))
+s_official <- bind_cols(s_official, select(so_bak, pH))
 s_official$SO4_NO3 <- rowSums(s_official[, c('SO4', 'NO3')])
 s_official$base_cat <- rowSums(s_official[, c('Ca', 'Mg', 'K', 'Na')])
 
-# s_official = s %>%
-#     filter(site == !!site) %>%
-#     rename(flow_mm = discharge) %>%
-#     mutate(waterYr = if_else(month(date) < 6, year(date) - 1, year(date))) %>%
-#     group_by(site, waterYr, month = month(date)) %>%
-#     summarize(across(flow_mm:base_cat, ~mean(., na.rm = TRUE)),
-#               .groups = 'drop') %>%
-#     # summarize(Ca = sum(Ca * discharge) / sum(discharge))
-#     filter(!(waterYr == 1963 & month < 6)) %>%
-#     mutate(date = as.Date(paste0(if_else(month < 6, waterYr + 1, waterYr),
-#                                  '-', month, '-01'))) %>%
-#     relocate(date, .after = site) %>%
-#     select(-month) %>%
-#     filter(date >= as.Date('1963-06-01'))
+s_official = s %>%
+    filter(site == !!site) %>%
+    rename(flow_mm = discharge) %>%
+    mutate(waterYr = if_else(month(date) < 6, year(date) - 1, year(date))) %>%
+    group_by(site, waterYr, month = month(date)) %>%
+    summarize(across(flow_mm:base_cat, ~mean(., na.rm = TRUE)),
+              .groups = 'drop') %>%
+    # summarize(Ca = sum(Ca * discharge) / sum(discharge))
+    filter(!(waterYr == 1963 & month < 6)) %>%
+    mutate(date = as.Date(paste0(if_else(month < 6, waterYr + 1, waterYr),
+                                 '-', month, '-01'))) %>%
+    relocate(date, .after = site) %>%
+    select(-month) %>%
+    filter(date >= as.Date('1963-06-01'))
 
 
 ## 3. fig 1 (hysteresis) ####
@@ -890,8 +890,8 @@ l_pos <- c(0.8, 0.8) #legend position
 
 vars <- list(c(Ca = 'Calcium', Na = 'Sodium', Mg = 'Magnesium', K = 'Potassium'),
              c(SO4 = 'Sulfate', Cl = 'Chloride', NO3 = 'Nitrate'),
-             c(H = 'Hydrogen Ion', ANC = 'ANC'))
-             # c(DIC = 'DIC', DOC = 'DOC'))
+             c(H = 'Hydrogen Ion', ANC = 'ANC'),
+             c(DIC = 'DIC', DOC = 'DOC'))
 
 panel_count <- 0
 panel_list <- list()
@@ -910,7 +910,7 @@ for(vset in vars){
         }
         vs <- bind_rows(vs, convert_to_long(vs_))
 
-        if(v_ != 'ANC'){
+        if(! v_ %in% c('ANC', 'DIC')){
             if(v_ == 'DOC'){
                 vp_ <- calc_mean_wateryear(p_official, v_, sample_cutoff = cutoff_p)
             } else {
@@ -1002,8 +1002,8 @@ for(vset in vars){
 }
 
 panel_list$A1 + panel_list$B1 + panel_list$A2 + panel_list$B2 +
-    panel_list$A3 + panel_list$B3 +
-    plot_layout(nrow = 3, byrow = TRUE, axes = 'collect')
+    panel_list$A3 + panel_list$B3 + panel_list$A4 + panel_list$B4 +
+    plot_layout(nrow = 4, byrow = TRUE, axes = 'collect')
 
 # tbl_out %>%
 #     arrange(source) %>%
@@ -1494,4 +1494,4 @@ for(v in vv){
         left_join(ll, by = 'waterYr')
 }
 
-write_csv(ll, '/tmp/w1.csv')
+write_csv(ll, paste0('/tmp/', site, '_mgL.csv'))
