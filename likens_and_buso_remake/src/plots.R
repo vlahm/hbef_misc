@@ -284,20 +284,20 @@ s_official <- bind_cols(s_official, select(so_bak, pH))
 s_official$SO4_NO3 <- rowSums(s_official[, c('SO4', 'NO3')])
 s_official$base_cat <- rowSums(s_official[, c('Ca', 'Mg', 'K', 'Na')])
 
-s_official = s %>%
-    filter(site == !!site) %>%
-    rename(flow_mm = discharge) %>%
-    mutate(waterYr = if_else(month(date) < 6, year(date) - 1, year(date))) %>%
-    group_by(site, waterYr, month = month(date)) %>%
-    summarize(across(flow_mm:base_cat, ~mean(., na.rm = TRUE)),
-              .groups = 'drop') %>%
-    # summarize(Ca = sum(Ca * discharge) / sum(discharge))
-    filter(!(waterYr == 1963 & month < 6)) %>%
-    mutate(date = as.Date(paste0(if_else(month < 6, waterYr + 1, waterYr),
-                                 '-', month, '-01'))) %>%
-    relocate(date, .after = site) %>%
-    select(-month) %>%
-    filter(date >= as.Date('1963-06-01'))
+# s_official = s %>%
+#     filter(site == !!site) %>%
+#     rename(flow_mm = discharge) %>%
+#     mutate(waterYr = if_else(month(date) < 6, year(date) - 1, year(date))) %>%
+#     group_by(site, waterYr, month = month(date)) %>%
+#     summarize(across(flow_mm:base_cat, ~mean(., na.rm = TRUE)),
+#               .groups = 'drop') %>%
+#     # summarize(Ca = sum(Ca * discharge) / sum(discharge))
+#     filter(!(waterYr == 1963 & month < 6)) %>%
+#     mutate(date = as.Date(paste0(if_else(month < 6, waterYr + 1, waterYr),
+#                                  '-', month, '-01'))) %>%
+#     relocate(date, .after = site) %>%
+#     select(-month) %>%
+#     filter(date >= as.Date('1963-06-01'))
 
 
 ## 3. fig 1 (hysteresis) ####
@@ -886,7 +886,7 @@ ggsave('~/Desktop/pH.png', width = 6, height = 8)
 
 ## 6. fig 4 (various solutes) ####
 
-l_pos <- c(0.8, 0.8) #legend position
+l_pos <- c(0.8, 0.75) #legend position
 
 vars <- list(c(Ca = 'Calcium', Na = 'Sodium', Mg = 'Magnesium', K = 'Potassium'),
              c(SO4 = 'Sulfate', Cl = 'Chloride', NO3 = 'Nitrate'),
@@ -952,25 +952,41 @@ for(vset in vars){
     }
 
     panel_list[[paste0('A', panel_count)]] <- fig4d1 %>%
-        ggplot(aes(x = waterYr,
-                   y = val,
-                   color = var)) +
+        ggplot(aes(x = waterYr, y = val, color = var)) +
         geom_line() +
         geom_point(shape = 20) +
-        scale_color_viridis_d(begin = 0.1, end = 0.8, option = 'viridis',
-                              labels = vset) +
-        geom_smooth(se = FALSE, method = 'lm', fullrange = TRUE,
-                    linewidth = 0.7, linetype = 'dotted') +
-        labs(x = "Water Year",
-             y = "µeq/L") +
+        scale_color_viridis_d(
+            begin = 0.1,
+            end = 0.8,
+            option = 'viridis',
+            labels = vset
+        ) +
+        geom_smooth(
+            se = FALSE,
+            method = 'lm',
+            fullrange = TRUE,
+            linewidth = 0.7,
+            linetype = 'dotted'
+        ) +
+        labs(x = "Water Year", y = "µeq/L") +
         guides(color = guide_legend(title = NULL)) +
         theme_few() +
-        theme(legend.position = 'inside',
-              legend.position.inside = if(panel_count == 3) c(0.8, 0.2) else l_pos,
-              plot.margin = margin(r = 10)) +
-        scale_x_continuous(breaks = seq(1960, 2030, by = 10),
-                           limits = c(1960, 2031),
-                           expand = c(0, 0))
+        theme(
+            legend.position = 'inside',
+            legend.position.inside = if (panel_count == 3) {
+                c(0.8, 0.2)
+            } else if (panel_count == 4) {
+                c(0.2, 0.8)
+            } else {
+                l_pos
+            },
+            plot.margin = margin(r = 10)
+        ) +
+        scale_x_continuous(
+            breaks = seq(1960, 2030, by = 10),
+            limits = c(1960, 2031),
+            expand = c(0, 0)
+        )
 
     if(panel_count == 3){
         panel_list[[paste0('A', panel_count)]] <- panel_list[[paste0('A', panel_count)]] +
@@ -981,24 +997,40 @@ for(vset in vars){
     write_csv(vp, paste0('data_out/fig4B', panel_count, '_', site, '.csv'))
 
     panel_list[[paste0('B', panel_count)]] <- vp %>%
-        ggplot(aes(x = waterYr,
-                   y = val,
-                   color = var)) +
+        ggplot(aes(x = waterYr, y = val, color = var)) +
         geom_line() +
         geom_point(shape = 20) +
-        scale_color_viridis_d(begin = 0.1, end = 0.8, option = 'D', labels = vset,
-                              direction = ifelse(panel_count == 3, -1, 1)) +
-        geom_smooth(se = FALSE, method = 'lm', fullrange = TRUE,
-                    linewidth = 0.7, linetype = 'dotted') +
-        labs(x = "Water Year",
-             y = "µeq/L") +
+        scale_color_viridis_d(
+            begin = 0.1,
+            end = 0.8,
+            option = 'D',
+            labels = vset,
+            direction = ifelse(panel_count == 3, -1, 1)
+        ) +
+        geom_smooth(
+            se = FALSE,
+            method = 'lm',
+            fullrange = TRUE,
+            linewidth = 0.7,
+            linetype = 'dotted'
+        ) +
+        labs(x = "Water Year", y = "µeq/L") +
         guides(color = guide_legend(title = NULL)) +
         theme_few() +
-        theme(legend.position = 'inside',
-              legend.position.inside = l_pos) +
-        scale_x_continuous(breaks = seq(1960, 2030, by = 10),
-                           limits = c(1960, 2031),
-                           expand = c(0, 0))
+        theme(
+            legend.position = 'inside',
+            #   legend.position.inside = l_pos) +
+            legend.position.inside = if (panel_count == 4) {
+                c(0.2, 0.8)
+            } else {
+                l_pos
+            }
+        ) +
+        scale_x_continuous(
+            breaks = seq(1960, 2030, by = 10),
+            limits = c(1960, 2031),
+            expand = c(0, 0)
+        )
 }
 
 panel_list$A1 + panel_list$B1 + panel_list$A2 + panel_list$B2 +
