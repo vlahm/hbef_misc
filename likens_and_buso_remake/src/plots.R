@@ -355,10 +355,13 @@ fig1d <- vs1 %>%
 write_csv(fig1d, paste0('data_out/fig1_', site, '.csv'))
 
 fig1d %>%
-    ggplot(aes(x = SO4_NO3, y = base_cat, color = year)) +
+    mutate(yr_brk = year > 2009) %>%
+    ggplot(aes(x = SO4_NO3, y = base_cat)) + ##, color = year)) +
     geom_abline(intercept = 0, slope = 1, linetype = 'dashed',
                 color = 'gray70', linewidth = 0.7) +
-    geom_point() +
+    geom_point(aes(shape = yr_brk, fill = yr_brk), color = 'blue3') +
+    scale_shape_manual(values = c(19, 21)) +
+    scale_fill_manual(values = c('blue3', "white")) +
     geom_line(data = trend_sA,
               aes(x = SO4_NO3, y = base_cat),
               color = 'black',
@@ -394,15 +397,16 @@ fig1d %>%
     labs(x = expression('Sum of SO'[4] + ' NO'[3] * ' (µeq/L)'),
          y = 'Sum of Base Cations (µeq/L)') +
     theme_few() +
-    theme(legend.position = 'inside',
-          legend.position.inside = c(0.85, 0.2),
+    theme(#legend.position = 'inside',
+        legend.position = 'none',
+          #legend.position.inside = c(0.85, 0.2),
           plot.margin = margin(t = 10, r = 10, l = 3)) +
     scale_y_continuous(limits = c(0, 200),
                        expand = c(0, 0)) +
     scale_x_continuous(limits = c(0, 200),
                        expand = c(0, 0))
 
-ggsave(paste0('figs/fig1_comparison_', site, '.png'), width = 6, height = 5)
+ggsave(paste0('figs/fig1_original_color_', site, '.png'), width = 6, height = 5)
 
 ## 3b. comparison of slopes ####
 
