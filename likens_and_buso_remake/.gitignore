@@ -5,3 +5,6 @@ elusive_baseline_update/
 *.zip
 README.txt
 figs_bak/
+todo
+*.swp
+.aider*
