@@ -1,4 +1,4 @@
-#2024-08-07
+#2026-03-26
 #latest EDI data versions (retrieved in section 1 below):
 #   stream/precip chemistry vsn 11
 #   discharge vsn 17
@@ -50,7 +50,7 @@ dir.create('figs/breakpoints/stream_1bp', showWarnings = FALSE)
 dir.create('figs/breakpoints/precip_multi_bp', showWarnings = FALSE)
 dir.create('figs/breakpoints/stream_multi_bp', showWarnings = FALSE)
 
-chem_urls <- get_edi_url(prodcode = 208, version = 13)
+chem_urls <- get_edi_url(prodcode = 208, version = 14)
 discharge_urls <- get_edi_url(prodcode = 1, version = 18)
 # precip_urls <- get_edi_url(prodcode = 13, version = 22)
 flux_urls <- get_edi_url(prodcode = 8, version = 19)
@@ -275,7 +275,7 @@ s_official <- s_official %>%
     select(site, date, waterYr, flow_mm, SpecCond_volwt, ANC_volwt, Ca,
            Mg, K, Na, NH4, SO4, NO3, Cl, Mn, Fe, `F`, H, DIC, DOC, pH = pH_volwt) %>%
     mutate(across(SpecCond_volwt:pH, ~if_else(. < -800, NA_real_, .)),
-           across(Ca:H, ~. / flow_mm / 10)) %>%
+           across(Ca:DOC, ~. / flow_mm / 10)) %>%
     rename(spCond = SpecCond_volwt, ANC = ANC_volwt)
 
 so_bak <- s_official
@@ -507,6 +507,166 @@ fig2d %>%
 ggsave(paste0('figs/fig2_', site, '.png'), width = 8, height = 5)
 
 
+## 4b. fig 2 (EC) quadratic ####
+
+# fit quadratic models to stream and precip spCond
+quad_s <- spcond_s %>%
+    filter(site == !!site) %>%
+    mutate(waterYr_c = waterYr - bsln)
+quad_p <- spcond_p %>%
+    mutate(waterYr_c = waterYr - bsln)
+
+mod_s_quad <- lm(spCond ~ poly(waterYr_c, 2, raw = TRUE), data = quad_s)
+mod_p_quad <- lm(spCond ~ poly(waterYr_c, 2, raw = TRUE), data = quad_p)
+
+# build equation strings (quadratic)
+cs <- coef(mod_s_quad)
+eqn_s_quad <- sprintf('Stream: y = %.3f %+.4fx %+.6fx²',
+                      cs[1], cs[2], cs[3])
+cp <- coef(mod_p_quad)
+eqn_p_quad <- sprintf('Precip: y = %.3f %+.4fx %+.6fx²',
+                      cp[1], cp[2], cp[3])
+
+pred_yrs_s <- seq(min(quad_s$waterYr), max(quad_s$waterYr))
+pred_yrs_p <- seq(min(quad_p$waterYr), max(quad_p$waterYr))
+
+trend_s_quad <- tibble(
+    waterYr = pred_yrs_s,
+    spCond = predict(mod_s_quad, newdata = data.frame(waterYr_c = pred_yrs_s - bsln)),
+    source = 'Stream water'
+)
+trend_p_quad <- tibble(
+    waterYr = pred_yrs_p,
+    spCond = predict(mod_p_quad, newdata = data.frame(waterYr_c = pred_yrs_p - bsln)),
+    source = 'Precipitation'
+)
+
+fig2d %>%
+    mutate(source = if_else(source == 'Streamwater', 'Stream water', source)) %>%
+    ggplot(aes(x = waterYr,
+               y = spCond,
+               color = source,
+               fill = source,
+               shape = source)) +
+    geom_line() +
+    geom_point() +
+    geom_line(data = trend_s_quad,
+              aes(x = waterYr, y = spCond),
+              color = 'red',
+              linewidth = 0.3,
+              show.legend = FALSE) +
+    geom_line(data = trend_p_quad,
+              aes(x = waterYr, y = spCond),
+              color = 'red',
+              linetype = 'dashed',
+              linewidth = 0.3,
+              show.legend = FALSE) +
+    scale_color_manual(values = c(Precipitation = 'blue3',
+                                  `Stream water` = 'blue3')) +
+    scale_shape_manual(values = c(Precipitation = 21,
+                                  `Stream water` = 21)) +
+    scale_fill_manual(values = c(Precipitation = 'white',
+                                 `Stream water` = 'blue3')) +
+    labs(x = "Water-Year",
+         y = "Specific Conductance (µS/cm)") +
+    guides(color = guide_legend(title = NULL),
+           fill = guide_legend(title = NULL),
+           shape = guide_legend(title = NULL)) +
+    theme_few() +
+    theme(legend.position = 'inside',
+          legend.position.inside = c(0.8, 0.8)) +
+    scale_y_continuous(limits = c(0, 40),
+                       expand = c(0, 0)) +
+    scale_x_continuous(breaks = seq(1960, 2040, by = 10),
+                       limits = c(1960, 2041),
+                       expand = c(0, 0)) +
+    annotate('text', x = 1962, y = 39, label = eqn_s_quad,
+             hjust = 0, vjust = 1, size = 3, color = 'red') +
+    annotate('text', x = 1962, y = 37, label = eqn_p_quad,
+             hjust = 0, vjust = 1, size = 3, color = 'red')
+
+ggsave(paste0('figs/fig2_quadratic_', site, '.png'), width = 8, height = 5)
+
+## 4c. fig 2 (EC) cubic ####
+
+# fit cubic models to stream and precip spCond
+cub_s <- spcond_s %>%
+    filter(site == !!site) %>%
+    mutate(waterYr_c = waterYr - bsln)
+cub_p <- spcond_p %>%
+    mutate(waterYr_c = waterYr - bsln)
+
+mod_s_cub <- lm(spCond ~ poly(waterYr_c, 3, raw = TRUE), data = cub_s)
+mod_p_cub <- lm(spCond ~ poly(waterYr_c, 3, raw = TRUE), data = cub_p)
+
+# build equation strings (cubic)
+cs3 <- coef(mod_s_cub)
+eqn_s_cub <- sprintf('Stream: y = %.3f %+.4fx %+.6fx² %+.8fx³',
+                     cs3[1], cs3[2], cs3[3], cs3[4])
+cp3 <- coef(mod_p_cub)
+eqn_p_cub <- sprintf('Precip: y = %.3f %+.4fx %+.6fx² %+.8fx³',
+                     cp3[1], cp3[2], cp3[3], cp3[4])
+
+pred_yrs_s_cub <- seq(min(cub_s$waterYr), max(cub_s$waterYr))
+pred_yrs_p_cub <- seq(min(cub_p$waterYr), max(cub_p$waterYr))
+
+trend_s_cub <- tibble(
+    waterYr = pred_yrs_s_cub,
+    spCond = predict(mod_s_cub, newdata = data.frame(waterYr_c = pred_yrs_s_cub - bsln)),
+    source = 'Stream water'
+)
+trend_p_cub <- tibble(
+    waterYr = pred_yrs_p_cub,
+    spCond = predict(mod_p_cub, newdata = data.frame(waterYr_c = pred_yrs_p_cub - bsln)),
+    source = 'Precipitation'
+)
+
+fig2d %>%
+    mutate(source = if_else(source == 'Streamwater', 'Stream water', source)) %>%
+    ggplot(aes(x = waterYr,
+               y = spCond,
+               color = source,
+               fill = source,
+               shape = source)) +
+    geom_line() +
+    geom_point() +
+    geom_line(data = trend_s_cub,
+              aes(x = waterYr, y = spCond),
+              color = 'red',
+              linewidth = 0.3,
+              show.legend = FALSE) +
+    geom_line(data = trend_p_cub,
+              aes(x = waterYr, y = spCond),
+              color = 'red',
+              linetype = 'dashed',
+              linewidth = 0.3,
+              show.legend = FALSE) +
+    scale_color_manual(values = c(Precipitation = 'blue3',
+                                  `Stream water` = 'blue3')) +
+    scale_shape_manual(values = c(Precipitation = 21,
+                                  `Stream water` = 21)) +
+    scale_fill_manual(values = c(Precipitation = 'white',
+                                 `Stream water` = 'blue3')) +
+    labs(x = "Water-Year",
+         y = "Specific Conductance (µS/cm)") +
+    guides(color = guide_legend(title = NULL),
+           fill = guide_legend(title = NULL),
+           shape = guide_legend(title = NULL)) +
+    theme_few() +
+    theme(legend.position = 'inside',
+          legend.position.inside = c(0.8, 0.8)) +
+    scale_y_continuous(limits = c(0, 40),
+                       expand = c(0, 0)) +
+    scale_x_continuous(breaks = seq(1960, 2040, by = 10),
+                       limits = c(1960, 2041),
+                       expand = c(0, 0)) +
+    annotate('text', x = 1962, y = 39, label = eqn_s_cub,
+             hjust = 0, vjust = 1, size = 3, color = 'red') +
+    annotate('text', x = 1962, y = 37, label = eqn_p_cub,
+             hjust = 0, vjust = 1, size = 3, color = 'red')
+
+ggsave(paste0('figs/fig2_cubic_', site, '.png'), width = 8, height = 5)
+
 ## 5. fig 3 (SO4 + NO3, base cations) ####
 
 v1 <- 'SO4_NO3'
@@ -560,7 +720,8 @@ panelA <- fig3da %>%
     scale_fill_manual(values = c(SO4_NO3 = 'white', base_cat = 'blue3'),
                       labels = c(SO4_NO3 = 'Sum of Sulfate + Nitrate', base_cat = 'Sum of Base Cations')) +
     labs(x = "Water-Year",
-         y = "Concentration  (µeq/L)") +
+         y = "Concentration  (µeq/L)",
+         title = "Stream water") +
     guides(color = guide_legend(title = NULL),
            fill = guide_legend(title = NULL),
            shape = guide_legend(title = NULL)) +
@@ -641,7 +802,8 @@ panelB <- fig3db %>%
     scale_fill_manual(values = c(SO4_NO3 = 'white', base_cat = 'blue3'),
                       labels = c(SO4_NO3 = 'Sum of Sulfate + Nitrate', base_cat = 'Sum of Base Cations')) +
     labs(x = "Water-Year",
-         y = "Concentration  (µeq/L)") +
+         y = "Concentration  (µeq/L)",
+         title = "Precipitation") +
     guides(color = guide_legend(title = NULL),
            fill = guide_legend(title = NULL),
            shape = guide_legend(title = NULL)) +
@@ -658,7 +820,98 @@ panelA + panelB + plot_layout(nrow = 2)#, heights = c(4, 1))
 
 ggsave(paste0('figs/fig3_comparison_', site, '.png'), width = 6, height = 8)
 
-## 5b. same thing but pH, SO4, NO3 for Amey ####
+## 5b. ion balance (stream) ####
+
+# compute water-year means for ion balance components
+ion_vars <- c('Ca', 'Mg', 'K', 'Na', 'H', 'NH4', 'SO4', 'NO3', 'Cl', 'ANC', 'DOC')
+
+ion_bal <- s_official %>%
+    filter(site == !!site) %>%
+    select(waterYr, any_of(ion_vars)) %>%
+    group_by(waterYr) %>%
+    summarize(across(everything(), ~mean(., na.rm = TRUE)),
+              .groups = 'drop') %>%
+    mutate(
+        sum_cations = Ca + Mg + K + Na + H + NH4,
+        sum_inorg_anions = SO4 + NO3 + Cl,
+        anion_deficit = sum_cations - sum_inorg_anions,
+        organic_anions = pmax(anion_deficit - pmax(ANC, 0), 0)
+    )
+
+write_csv(ion_bal, paste0('data_out/ion_balance_', site, '.csv'))
+
+# plot 1: anion deficit, ANC, and organic anion estimate (residual) over time
+ion_bal_long <- ion_bal %>%
+    select(waterYr, anion_deficit, ANC, organic_anions) %>%
+    pivot_longer(-waterYr, names_to = 'var', values_to = 'val')
+
+ggplot(ion_bal_long, aes(x = waterYr, y = val, color = var, shape = var)) +
+    geom_line() +
+    geom_point() +
+    geom_hline(yintercept = 0, linetype = 'dashed', color = 'gray70', linewidth = 0.4) +
+    scale_color_manual(
+        values = c(anion_deficit = 'black', ANC = 'blue3', organic_anions = 'forestgreen'),
+        labels = c(anion_deficit = 'Anion Deficit (Σ cations − Σ inorg. anions)',
+                   ANC = 'HCO₃⁻ (≈ ANC, when positive)',
+                   organic_anions = 'Organic anions (deficit − ANC, when positive)')
+    ) +
+    scale_shape_manual(
+        values = c(anion_deficit = 16, ANC = 17, organic_anions = 15),
+        labels = c(anion_deficit = 'Anion Deficit (Σ cations − Σ inorg. anions)',
+                   ANC = 'HCO₃⁻ (≈ ANC, when positive)',
+                   organic_anions = 'Organic anions (deficit − ANC, when positive)')
+    ) +
+    labs(x = 'Water-Year',
+         y = 'µeq/L',
+         title = paste0('Stream water ion balance — ', site)) +
+    guides(color = guide_legend(title = NULL),
+           shape = guide_legend(title = NULL)) +
+    theme_few() +
+    theme(legend.position = 'inside',
+          legend.position.inside = c(0.35, 0.85)) +
+    scale_x_continuous(breaks = seq(1960, 2030, by = 10),
+                       limits = c(1960, 2031),
+                       expand = c(0, 0))
+
+ggsave(paste0('figs/fig_ion_balance_deficit_', site, '.png'), width = 8, height = 5)
+
+# plot 2: stacked area chart of anion composition
+anion_stack <- ion_bal %>%
+    mutate(
+        ANC_pos = pmax(ANC, 0)
+    ) %>%
+    select(waterYr, `SO₄²⁻` = SO4, `NO₃⁻` = NO3, `Cl⁻` = Cl,
+           `HCO₃⁻ (≈ ANC, when positive)` = ANC_pos,
+           `Organic anions (deficit − ANC, when positive)` = organic_anions) %>%
+    pivot_longer(-waterYr, names_to = 'anion', values_to = 'val') %>%
+    mutate(anion = factor(anion, levels = c('SO₄²⁻', 'NO₃⁻', 'Cl⁻',
+                                            'HCO₃⁻ (≈ ANC, when positive)',
+                                            'Organic anions (deficit − ANC, when positive)')))
+
+ggplot(anion_stack, aes(x = waterYr, y = val, fill = anion)) +
+    geom_area(alpha = 0.8) +
+    scale_fill_manual(
+        values = c('SO₄²⁻' = '#E41A1C',
+                   'NO₃⁻' = '#377EB8',
+                   'Cl⁻' = '#4DAF4A',
+                   'HCO₃⁻ (≈ ANC, when positive)' = '#984EA3',
+                   'Organic anions (deficit − ANC, when positive)' = '#FF7F00')
+    ) +
+    labs(x = 'Water-Year',
+         y = 'µeq/L',
+         title = paste0('Stream water anion composition — ', site)) +
+    guides(fill = guide_legend(title = NULL)) +
+    theme_few() +
+    theme(legend.position = 'inside',
+          legend.position.inside = c(0.75, 0.75)) +
+    scale_x_continuous(breaks = seq(1960, 2030, by = 10),
+                       limits = c(1960, 2031),
+                       expand = c(0, 0)) +
+    scale_y_continuous(expand = c(0, 0))
+
+ggsave(paste0('figs/fig_anion_composition_', site, '.png'), width = 8, height = 5)
+
+## 5c. same thing but pH, SO4, NO3 for Amey ####
 
 v1 <- 'NO3'
 v2 <- 'SO4'
@@ -1037,6 +1290,9 @@ for(vset in vars){
         )
 }
 
+panel_list$A1 <- panel_list$A1 + ggtitle('Stream water')
+panel_list$B1 <- panel_list$B1 + ggtitle('Precipitation')
+
 panel_list$A1 + panel_list$B1 + panel_list$A2 + panel_list$B2 +
     panel_list$A3 + panel_list$B3 + panel_list$A4 + panel_list$B4 +
     plot_layout(nrow = 4, byrow = TRUE, axes = 'collect')
@@ -1346,6 +1602,8 @@ for(v_ in vars_included){
 
 write_csv(s_bp_table, 'data_out/single_breakpoint_table_stream.csv')
 
+s_multi_bp_table <- tibble()
+
 for(v_ in s_bp_table[s_bp_table$multiple_bp_support, ]$solute){
 
     first_non_na <- Position(\(x) ! is.na(x), s_official[[v_]])
@@ -1361,43 +1619,59 @@ for(v_ in s_bp_table[s_bp_table$multiple_bp_support, ]$solute){
 
     n_bp <- s_multi_bp[[v_]]
     lm_mod <- lm(reformulate('date_int', v_), data = s_seg)
-    seg1 <- segmented(lm_mod, seg.Z = ~date_int, npsi = n_bp)
+    seg_multi <- segmented(lm_mod, seg.Z = ~date_int, npsi = n_bp)
 
     png(paste0('figs/breakpoints/stream_multi_bp/', v_, '.png'))
     plot(s_seg$date_int, s_seg[[v_]], pch = 16, col = "grey",
          xlab = '', ylab = v_, xaxt = 'n')
-    plot(seg1, add = TRUE)
+    plot(seg_multi, add = TRUE)
     s_axis <- s_seg %>%
         filter(date %% 10 == 0)
     axis(1, s_axis$date_int, s_axis$date)
-    # plot(seg2, add = TRUE)
     dev.off()
 
-    # breakpoint <- seg1$psi[, "Est."]
-    # break_date <- min_date + breakpoint
-    # bp_SE_days <- seg1$psi[, "St.Err"]
-    #
-    # intc <- round(seg1$coefficients[1], 3)
-    # slope1 <- round(seg1$coefficients[2], 3)
-    # slope2 <- round(seg1$coefficients[2] + seg1$coefficients[3], 3)
-    #
-    # eqn1 <- sprintf('y = %.3f %.3f', intc, slope1)
-    # eqn2 <- sprintf('y = %.3f %+.3f', intc, slope2)
-    #
-    # bp_row <- tibble(solute = v_,
-    #                  period1 = paste(min_date, '-', break_date),
-    #                  period2 = paste(break_date, '-', max_date),
-    #                  eqn1 = eqn1,
-    #                  eqn2 = eqn2,
-    #                  breakpoint = break_date,
-    #                  bp_SE_days = bp_SE_days,
-    #                  bp_supported_BIC = bp_supported_BIC,
-    #                  bp_supported_davies = bp_supported_davies,
-    #                  multiple_bp_support = multi_bp)
-    #
-    # s_bp_table <- s_bp_table %>%
-    #     bind_rows(bp_row)
+    breakpoints <- seg_multi$psi[, "Est."]
+    break_dates <- round(min_date + breakpoints, 2)
+    bp_SEs <- seg_multi$psi[, "St.Err"]
+
+    # BIC: multi-bp model vs linear (no breakpoints)
+    BIC_vs_linear <- diff(BIC(lm_mod, seg_multi)$BIC) < 0
+
+    # build equation: y = intc + slope1*x + slope2*(x - bp1)+ + slope3*(x - bp2)+ + ...
+    coeffs <- seg_multi$coefficients
+    intc <- round(coeffs[1], 3)
+    eqn <- sprintf('y = %.3f %+.3fx', intc, round(coeffs[2], 3))
+    for(j in seq_along(breakpoints)){
+        eqn <- paste0(eqn, sprintf(' %+.3f(x-%.3f)+', round(coeffs[2 + j], 3),
+                                   round(breakpoints[j], 3)))
+    }
+    eqn <- paste0(eqn, ' + ϵ')
+
+    # build period strings from breakpoints
+    all_dates <- c(min_date, round(break_dates, 0), max_date)
+    periods <- paste0('period', seq_along(all_dates) - 1)[-1]
+    period_strs <- sapply(seq_len(length(all_dates) - 1), function(k){
+        paste(all_dates[k], '-', all_dates[k + 1])
+    })
+    names(period_strs) <- periods
+
+    bp_row <- tibble(
+        solute = v_,
+        n_breakpoints = n_bp,
+        breakpoints = paste(round(break_dates, 0), collapse = ', '),
+        bp_SE_yrs = paste(round(bp_SEs, 2), collapse = ', '),
+        eqn = eqn,
+        BIC_vs_linear = BIC_vs_linear
+    )
+    # add period columns dynamically
+    for(k in seq_along(period_strs)){
+        bp_row[[names(period_strs)[k]]] <- period_strs[k]
+    }
+
+    s_multi_bp_table <- bind_rows(s_multi_bp_table, bp_row)
 }
+
+write_csv(s_multi_bp_table, 'data_out/multi_breakpoint_table_stream.csv')
 
 ## 8c. breakpoint analyses (precip, wateryear) ####
 
@@ -1489,6 +1763,8 @@ for(v_ in vars_included){
 
 write_csv(p_bp_table, 'data_out/single_breakpoint_table_precip.csv')
 
+p_multi_bp_table <- tibble()
+
 for(v_ in p_bp_table[p_bp_table$multiple_bp_support, ]$solute){
 
     first_non_na <- Position(\(x) ! is.na(x), p_official[[v_]])
@@ -1497,24 +1773,66 @@ for(v_ in p_bp_table[p_bp_table$multiple_bp_support, ]$solute){
     min_date <- p_official$date[first_non_na]
     max_date <- p_official$date[last_non_na]
 
-    s_seg <- p_official %>%
+    p_seg <- p_official %>%
         slice(first_non_na:nrow(p_official)) %>%
         mutate(date_int = as.numeric(date - !!min_date)) %>%
         select(!!v_, date, date_int)
 
     n_bp <- p_multi_bp[[v_]]
-    lm_mod <- lm(reformulate('date_int', v_), data = s_seg)
-    seg1 <- segmented(lm_mod, seg.Z = ~date_int, npsi = n_bp)
+    lm_mod <- lm(reformulate('date_int', v_), data = p_seg)
+    seg_multi <- segmented(lm_mod, seg.Z = ~date_int, npsi = n_bp)
 
     png(paste0('figs/breakpoints/precip_multi_bp/', v_, '.png'))
-    plot(s_seg$date_int, s_seg[[v_]], pch = 16, col = "grey",
+    plot(p_seg$date_int, p_seg[[v_]], pch = 16, col = "grey",
          xlab = '', ylab = v_, xaxt = 'n')
-    plot(seg1, add = TRUE)
-    s_axis <- s_seg %>%
+    plot(seg_multi, add = TRUE)
+    p_axis <- p_seg %>%
         filter(date %% 10 == 0)
-    axis(1, s_axis$date_int, s_axis$date)
+    axis(1, p_axis$date_int, p_axis$date)
     dev.off()
+
+    breakpoints <- seg_multi$psi[, "Est."]
+    break_dates <- round(min_date + breakpoints, 2)
+    bp_SEs <- seg_multi$psi[, "St.Err"]
+
+    # BIC: multi-bp model vs linear (no breakpoints)
+    BIC_vs_linear <- diff(BIC(lm_mod, seg_multi)$BIC) < 0
+
+    # build equation: y = intc + slope1*x + slope2*(x - bp1)+ + slope3*(x - bp2)+ + ...
+    coeffs <- seg_multi$coefficients
+    intc <- round(coeffs[1], 3)
+    eqn <- sprintf('y = %.3f %+.3fx', intc, round(coeffs[2], 3))
+    for(j in seq_along(breakpoints)){
+        eqn <- paste0(eqn, sprintf(' %+.3f(x-%.3f)+', round(coeffs[2 + j], 3),
+                                   round(breakpoints[j], 3)))
+    }
+    eqn <- paste0(eqn, ' + ϵ')
+
+    # build period strings from breakpoints
+    all_dates <- c(min_date, round(break_dates, 0), max_date)
+    periods <- paste0('period', seq_along(all_dates) - 1)[-1]
+    period_strs <- sapply(seq_len(length(all_dates) - 1), function(k){
+        paste(all_dates[k], '-', all_dates[k + 1])
+    })
+    names(period_strs) <- periods
+
+    bp_row <- tibble(
+        solute = v_,
+        n_breakpoints = n_bp,
+        breakpoints = paste(round(break_dates, 0), collapse = ', '),
+        bp_SE_yrs = paste(round(bp_SEs, 2), collapse = ', '),
+        eqn = eqn,
+        BIC_vs_linear = BIC_vs_linear
+    )
+    # add period columns dynamically
+    for(k in seq_along(period_strs)){
+        bp_row[[names(period_strs)[k]]] <- period_strs[k]
+    }
+
+    p_multi_bp_table <- bind_rows(p_multi_bp_table, bp_row)
 }
+
+write_csv(p_multi_bp_table, 'data_out/multi_breakpoint_table_precip.csv')
 
 # just exporting data ####
 

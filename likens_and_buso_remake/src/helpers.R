@@ -255,7 +255,8 @@ get_trendline <- function(d, site, lims, filt = FALSE, poly = FALSE, smry = TRUE
 convert_to_equivalents <- function(d){
 
     unconvertibles <- c('site', 'date', 'waterYr', 'discharge', 'precip', 'flow_mm',
-                        'cationCharge', 'anionCharge', 'spCond', 'SpecCond_volwt', 'ANC')
+                        'cationCharge', 'anionCharge', 'spCond', 'SpecCond_volwt', 'ANC',
+                        'DOC', 'DIC')
 
     d_ms <- d %>%
         pivot_longer(-any_of(c('site', 'date', 'waterYr')),
