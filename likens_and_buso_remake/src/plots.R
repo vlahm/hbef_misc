@@ -430,7 +430,7 @@ hist(slope_diffs, breaks = 30, main = "Bootstrap Distribution of Slope Differenc
 abline(v = ci, col = "red", lwd = 2, lty = 2)
 
 
-## 4. fig 2 (EC) ####
+## 4. fig 2 (EC; new segments) ####
 
 v_ <- 'spCond'
 
@@ -453,7 +453,8 @@ fig2d <- spcond_s %>%
 write_csv(fig2d, paste0('data_out/fig2_', site, '.csv'))
 
 fig2d %>%
-    mutate(source = if_else(source == 'Streamwater', 'Stream water', source)) %>%
+    mutate(source = if_else(source == 'Streamwater', 'Streamwater EC', source)) %>%
+    mutate(source = if_else(source == 'Precipitation', 'Precipitation EC', source)) %>%
     ggplot(aes(x = waterYr,
                y = spCond,
                color = source,
@@ -483,14 +484,14 @@ fig2d %>%
               linetype = 'dashed',
               linewidth = 0.3,
               show.legend = FALSE) +
-    scale_color_manual(values = c(Precipitation = 'blue3',
-                                  `Stream water` = 'blue3')) +
-    scale_shape_manual(values = c(Precipitation = 21,
-                                  `Stream water` = 21)) +
-    scale_fill_manual(values = c(Precipitation = 'white',
-                                 `Stream water` = 'blue3')) +
-    labs(x = "Water-Year",
-         y = "Specific Conductance (µS/cm)") +
+    scale_color_manual(values = c(`Precipitation EC` = 'blue4',
+                                  `Streamwater EC` = 'blue4')) +
+    scale_shape_manual(values = c(`Precipitation EC` = 21,
+                                  `Streamwater EC` = 21)) +
+    scale_fill_manual(values = c(`Precipitation EC` = 'white',
+                                 `Streamwater EC` = 'blue4')) +
+    labs(x = "Water Year",
+         y = "VWA Electrical Conductivity (µS/cm)") +
     guides(color = guide_legend(title = NULL),
            fill = guide_legend(title = NULL),
            shape = guide_legend(title = NULL)) +
@@ -507,7 +508,383 @@ fig2d %>%
 ggsave(paste0('figs/fig2_', site, '.png'), width = 8, height = 5)
 
 
-## 4b. fig 2 (EC) quadratic ####
+## 4b. fig 2 (EC; exact replica) ####
+
+v_ <- 'spCond'
+
+spcond_s <- calc_vwc_wateryear(s_official, v_, sample_cutoff = cutoff_s)
+spcond_p <- calc_vwc_wateryear(p_official, v_, sample_cutoff = cutoff_p)
+
+bsln <- min(c(spcond_p$waterYr, spcond_s$waterYr))
+trend_sA <- get_trendline(spcond_s, site = site, lims = c(min(spcond_s$waterYr), 2041), filt = FALSE, baseline = bsln)
+trend_pA <- get_trendline(spcond_p, site = 'all', lims = c(min(spcond_p$waterYr), 2041), filt = FALSE, baseline = bsln)
+trend_pA_quad <- get_trendline(spcond_p, site = 'all', lims = c(1960, 2041), filt = FALSE, poly = TRUE, baseline = bsln)
+
+fig2d <- spcond_s %>%
+    filter(site == !!site) %>%
+    bind_rows(spcond_p)
+
+write_csv(fig2d, paste0('data_out/fig2_', site, '.csv'))
+
+fig2d %>%
+    mutate(source = if_else(source == 'Streamwater', 'Streamwater EC', source)) %>%
+    mutate(source = if_else(source == 'Precipitation', 'Precipitation EC', source)) %>%
+    ggplot(aes(x = waterYr,
+               y = spCond,
+               color = source,
+               fill = source,
+               shape = source)) +
+    geom_line() +
+    geom_point() +
+    geom_line(data = trend_sA,
+              aes(x = waterYr, y = spCond),
+              color = 'red',
+              linewidth = 0.3,
+              show.legend = FALSE) +
+    geom_line(data = trend_pA,
+              aes(x = waterYr, y = spCond),
+              color = 'red',
+              linetype = 'dashed',
+              linewidth = 0.3,
+              show.legend = FALSE) +
+    geom_line(data = trend_pA_quad,
+              aes(x = waterYr, y = spCond),
+              color = 'red',
+              linetype = 'dashed',
+              linewidth = 0.3,
+              show.legend = FALSE) +
+    scale_color_manual(values = c(`Precipitation EC` = 'blue4',
+                                  `Streamwater EC` = 'blue4')) +
+    scale_shape_manual(values = c(`Precipitation EC` = 21,
+                                  `Streamwater EC` = 21)) +
+    scale_fill_manual(values = c(`Precipitation EC` = 'white',
+                                 `Streamwater EC` = 'blue4')) +
+    labs(x = "Water Year",
+         y = "VWA Electrical Conductivity (µS/cm)") +
+    guides(color = guide_legend(title = NULL),
+           fill = guide_legend(title = NULL),
+           shape = guide_legend(title = NULL)) +
+    theme_few() +
+    theme(legend.position = 'inside',
+          legend.position.inside = c(0.55, 0.75),
+          legend.background = element_rect(fill = 'white', color = 'black', linewidth = 0.3),
+          legend.margin = margin(4, 6, 8, 6)) +
+    scale_y_continuous(limits = c(0, 40),
+                       expand = c(0, 0)) +
+    scale_x_continuous(breaks = seq(1960, 2040, by = 10),
+                       limits = c(1960, 2041),
+                       # expand = expansion(add = c(5, 0)))
+                       expand = c(0, 0)) +
+    annotate('text', x = 1960 + 0.20 * (2041 - 1960), y = 0.9 * 40,
+             label = 'Precipitation', fontface = 'bold', size = 5, hjust = 0) +
+    annotate('text', x = 1965 + 0.05 * (2041 - 1960), y = 0.45 * 40,
+             label = 'Stream Water', fontface = 'bold', size = 5, hjust = 0) +
+    annotate('segment', x = 1995, xend = 2041, y = 3, yend = 3,
+             linetype = 'dashed', color = 'gray50', linewidth = 0.4) +
+    annotate('segment', x = 1985, xend = 2041, y = 5, yend = 5,
+             linetype = 'dashed', color = 'gray50', linewidth = 0.4) +
+    annotate('text', x = 1994, y = 3, label = expression(bold('3 µS/cm')),
+             hjust = 1, size = 3.2) +
+    annotate('text', x = 1984, y = 5, label = expression(bold('5 µS/cm')),
+             hjust = 1, size = 3.2)
+
+ggsave(paste0('figs/fig2_', site, '_replica.png'), width = 8, height = 5)
+
+
+## 4c. fig 2 (EC; new points highlighted) ####
+
+v_ <- 'spCond'
+
+spcond_s <- calc_vwc_wateryear(s_official, v_, sample_cutoff = cutoff_s)
+spcond_p <- calc_vwc_wateryear(p_official, v_, sample_cutoff = cutoff_p)
+
+bsln <- min(c(spcond_p$waterYr, spcond_s$waterYr))
+trend_sA <- get_trendline(spcond_s, site = site, lims = c(min(spcond_s$waterYr), 2041), filt = FALSE, baseline = bsln)
+trend_pA <- get_trendline(spcond_p, site = 'all', lims = c(min(spcond_p$waterYr), 2041), filt = FALSE, baseline = bsln)
+trend_pA_quad <- get_trendline(spcond_p, site = 'all', lims = c(1960, 2041), filt = FALSE, poly = TRUE, baseline = bsln)
+
+fig2d <- spcond_s %>%
+    filter(site == !!site) %>%
+    bind_rows(spcond_p) %>%
+    mutate(
+        source = if_else(source == 'Streamwater', 'Streamwater EC', source),
+        source = if_else(source == 'Precipitation', 'Precipitation EC', source),
+        post2009 = waterYr > 2009,
+        pt_group = paste0(source, ifelse(post2009, ' (post-2009)', ''))
+    )
+
+fig2d %>%
+    ggplot(aes(x = waterYr,
+               y = spCond,
+               color = source,
+               group = source)) +
+    geom_line() +
+    # pre-2009 points (filled)
+    geom_point(data = filter(fig2d, !post2009),
+               aes(fill = source),
+               shape = 21,
+               color = NA,
+               size = 2) +
+    # post-2009 points (hollow)
+    geom_point(data = filter(fig2d, post2009),
+               aes(color = source),
+               shape = 21, fill = 'white', size = 2) +
+    geom_line(data = trend_sA,
+              aes(x = waterYr, y = spCond),
+              color = 'black',
+              linewidth = 0.3,
+              show.legend = FALSE) +
+    geom_line(data = trend_pA,
+              aes(x = waterYr, y = spCond),
+              color = 'black',
+              linetype = 'dotted',
+              linewidth = 0.5,
+              show.legend = FALSE) +
+    # geom_line(data = trend_pA_quad,
+    #           aes(x = waterYr, y = spCond),
+    #           color = 'black',
+    #           linetype = 'dashed',
+    #           linewidth = 0.3,
+    #           show.legend = FALSE) +
+    scale_color_manual(values = c(`Precipitation EC` = 'darkorange3',
+                                  `Streamwater EC` = 'blue4')) +
+    scale_fill_manual(values = c(`Precipitation EC` = 'darkorange3',
+                                 `Streamwater EC` = 'blue4')) +
+    labs(x = "Water Year",
+         y = "VWA Electrical Conductivity (µS/cm)") +
+    guides(color = guide_legend(title = NULL, override.aes = list(color = c('darkorange3', 'blue4'), shape = 21)),
+           fill = 'none') +
+    theme_few() +
+    theme(legend.position = 'inside',
+          legend.position.inside = c(0.55, 0.75),
+          legend.background = element_rect(fill = 'white', color = 'black', linewidth = 0.3),
+          legend.margin = margin(4, 6, 8, 6)) +
+    scale_y_continuous(limits = c(0, 40),
+                       expand = c(0, 0)) +
+    scale_x_continuous(breaks = seq(1960, 2040, by = 10),
+                       limits = c(1960, 2041),
+                       expand = c(0, 0)) +
+    annotate('text', x = 1960 + 0.20 * (2041 - 1960), y = 0.9 * 40,
+             label = 'Precipitation', fontface = 'bold', size = 5, hjust = 0) +
+    annotate('text', x = 1965 + 0.05 * (2041 - 1960), y = 0.45 * 40,
+             label = 'Stream Water', fontface = 'bold', size = 5, hjust = 0) +
+    annotate('segment', x = 1995, xend = 2041, y = 3, yend = 3,
+             linetype = 'dashed', color = 'red', linewidth = 0.4) +
+    annotate('segment', x = 1985, xend = 2041, y = 5, yend = 5,
+             linetype = 'dashed', color = 'red', linewidth = 0.4) +
+    annotate('text', x = 1994, y = 3, label = expression(bold('3 µS/cm')),
+             hjust = 1, size = 3.2) +
+    annotate('text', x = 1984, y = 5, label = expression(bold('5 µS/cm')),
+             hjust = 1, size = 3.2)
+
+ggsave(paste0('figs/fig2_', site, '_newobs.png'), width = 8, height = 5)
+
+## 4d. fig 2 (EC; different functions) ####
+
+v_ <- 'spCond'
+
+spcond_s <- calc_vwc_wateryear(s_official, v_, sample_cutoff = cutoff_s)
+spcond_p <- calc_vwc_wateryear(p_official, v_, sample_cutoff = cutoff_p)
+
+bsln <- min(c(spcond_p$waterYr, spcond_s$waterYr))
+pred_yrs <- seq(1960, 2041)
+
+# --- linear trends (all data, extended to plot border) ---
+trend_sA <- get_trendline(spcond_s, site = site, lims = c(min(spcond_s$waterYr), 2041), filt = FALSE, baseline = bsln)
+trend_pA <- get_trendline(spcond_p, site = 'all', lims = c(min(spcond_p$waterYr), 2041), filt = FALSE, baseline = bsln)
+
+# --- exponential decay: y = a + b * exp(-c * t) ---
+
+# streamwater
+exp_s <- spcond_s %>%
+    filter(site == !!site) %>%
+    mutate(t = waterYr - bsln)
+
+a_start_s <- mean(tail(exp_s$spCond, 5), na.rm = TRUE)
+b_start_s <- mean(head(exp_s$spCond, 5), na.rm = TRUE) - a_start_s
+c_start_s <- 0.05
+
+mod_exp_s <- nls(spCond ~ a + b * exp(-c * t),
+                 data = exp_s,
+                 start = list(a = a_start_s, b = b_start_s, c = c_start_s),
+                 control = nls.control(maxiter = 200))
+cat('\n--- Exponential decay (stream) ---\n')
+print(summary(mod_exp_s))
+
+trend_s_exp <- tibble(
+    waterYr = pred_yrs,
+    spCond = predict(mod_exp_s, newdata = data.frame(t = pred_yrs - bsln)),
+    source = 'trend_s'
+)
+
+# precipitation
+exp_p <- spcond_p %>%
+    mutate(t = waterYr - bsln)
+
+# try SSasymp self-starter first, then manual starts as fallback
+mod_exp_p <- try(
+    nls(spCond ~ SSasymp(t, Asym, R0, lrc), data = exp_p),
+    silent = TRUE
+)
+if(inherits(mod_exp_p, 'try-error')){
+    a_start_p <- mean(tail(exp_p$spCond, 5), na.rm = TRUE)
+    b_start_p <- mean(head(exp_p$spCond, 5), na.rm = TRUE) - a_start_p
+    c_start_p <- 0.02
+    mod_exp_p <- try(
+        nls(spCond ~ a + b * exp(-c * t),
+            data = exp_p,
+            start = list(a = a_start_p, b = b_start_p, c = c_start_p),
+            control = nls.control(maxiter = 500, minFactor = 1e-6)),
+        silent = TRUE
+    )
+}
+
+if(! inherits(mod_exp_p, 'try-error')){
+    cat('\n--- Exponential decay (precip) ---\n')
+    print(summary(mod_exp_p))
+    trend_p_exp <- tibble(
+        waterYr = pred_yrs,
+        spCond = predict(mod_exp_p, newdata = data.frame(t = pred_yrs - bsln)),
+        source = 'trend_p'
+    )
+} else {
+    cat('\n--- Exponential decay (precip): failed to converge ---\n')
+    trend_p_exp <- NULL
+}
+
+# --- declining logistic: y = a + b / (1 + exp(c * (t - d))) ---
+
+# streamwater
+mid_s <- median(exp_s$t)
+mod_log_s <- nls(spCond ~ a + b / (1 + exp(c * (t - d))),
+                 data = exp_s,
+                 start = list(a = a_start_s, b = b_start_s, c = 0.1, d = mid_s),
+                 control = nls.control(maxiter = 500))
+cat('\n--- Declining logistic (stream) ---\n')
+print(summary(mod_log_s))
+
+trend_s_log <- tibble(
+    waterYr = pred_yrs,
+    spCond = predict(mod_log_s, newdata = data.frame(t = pred_yrs - bsln)),
+    source = 'trend_s'
+)
+
+# precipitation
+mid_p <- median(exp_p$t)
+a_start_p_log <- mean(tail(exp_p$spCond, 5), na.rm = TRUE)
+b_start_p_log <- mean(head(exp_p$spCond, 5), na.rm = TRUE) - a_start_p_log
+mod_log_p <- try(
+    nls(spCond ~ a + b / (1 + exp(c * (t - d))),
+        data = exp_p,
+        start = list(a = a_start_p_log, b = b_start_p_log, c = 0.1, d = mid_p),
+        control = nls.control(maxiter = 500, minFactor = 1e-6)),
+    silent = TRUE
+)
+
+if(! inherits(mod_log_p, 'try-error')){
+    cat('\n--- Declining logistic (precip) ---\n')
+    print(summary(mod_log_p))
+    trend_p_log <- tibble(
+        waterYr = pred_yrs,
+        spCond = predict(mod_log_p, newdata = data.frame(t = pred_yrs - bsln)),
+        source = 'trend_p'
+    )
+} else {
+    cat('\n--- Declining logistic (precip): failed to converge ---\n')
+    trend_p_log <- NULL
+}
+
+# --- plot ---
+
+fig2d <- spcond_s %>%
+    filter(site == !!site) %>%
+    bind_rows(spcond_p)
+
+fig2d %>%
+    mutate(source = if_else(source == 'Streamwater', 'Streamwater EC', source)) %>%
+    mutate(source = if_else(source == 'Precipitation', 'Precipitation EC', source)) %>%
+    ggplot(aes(x = waterYr,
+               y = spCond,
+               color = source,
+               fill = source,
+               shape = source)) +
+    geom_line() +
+    geom_point() +
+    # linear fits (red)
+    # geom_line(data = trend_sA,
+    #           aes(x = waterYr, y = spCond),
+    #           color = 'red',
+    #           linewidth = 0.3,
+    #           show.legend = FALSE) +
+    # geom_line(data = trend_pA,
+    #           aes(x = waterYr, y = spCond),
+    #           color = 'red',
+    #           linetype = 'dashed',
+    #           linewidth = 0.3,
+    #           show.legend = FALSE) +
+    # exponential decay fits (gray, solid = stream, dashed = precip)
+    # geom_line(data = trend_s_exp,
+    #           aes(x = waterYr, y = spCond),
+    #           color = 'red',
+    #           linetype = 'dotted',
+    #           linewidth = 0.5,
+    #           show.legend = FALSE) +
+    # {if(!is.null(trend_p_exp)) geom_line(data = trend_p_exp,
+    #           aes(x = waterYr, y = spCond),
+    #           color = 'red',
+    #           linetype = 'dashed',
+    #           linewidth = 0.5,
+    #           show.legend = FALSE)} +
+    # declining logistic fits (gray, solid = stream, dashed = precip)
+    geom_line(data = trend_s_log,
+              aes(x = waterYr, y = spCond),
+              color = 'red',
+              linetype = 'dashed',
+              linewidth = 0.5,
+              show.legend = FALSE) +
+    {if(!is.null(trend_p_log)) geom_line(data = trend_p_log,
+              aes(x = waterYr, y = spCond),
+              color = 'red',
+              linetype = 'solid',
+              linewidth = 0.5,
+              show.legend = FALSE)} +
+    scale_color_manual(values = c(`Precipitation EC` = 'blue4',
+                                  `Streamwater EC` = 'blue4')) +
+    scale_shape_manual(values = c(`Precipitation EC` = 21,
+                                  `Streamwater EC` = 21)) +
+    scale_fill_manual(values = c(`Precipitation EC` = 'white',
+                                 `Streamwater EC` = 'blue4')) +
+    labs(x = "Water Year",
+         y = "VWA Electrical Conductivity (µS/cm)") +
+    guides(color = guide_legend(title = NULL),
+           fill = guide_legend(title = NULL),
+           shape = guide_legend(title = NULL)) +
+    theme_few() +
+    theme(legend.position = 'inside',
+          legend.position.inside = c(0.55, 0.75),
+          legend.background = element_rect(fill = 'white', color = 'black', linewidth = 0.3),
+          legend.margin = margin(4, 6, 8, 6)) +
+    scale_y_continuous(limits = c(0, 40),
+                       expand = c(0, 0)) +
+    scale_x_continuous(breaks = seq(1960, 2040, by = 10),
+                       limits = c(1960, 2041),
+                       expand = c(0, 0)) +
+    annotate('text', x = 1960 + 0.20 * (2041 - 1960), y = 0.9 * 40,
+             label = 'Precipitation', fontface = 'bold', size = 5, hjust = 0) +
+    annotate('text', x = 1965 + 0.05 * (2041 - 1960), y = 0.45 * 40,
+             label = 'Stream Water', fontface = 'bold', size = 5, hjust = 0) +
+    annotate('segment', x = 1995, xend = 2041, y = 3, yend = 3,
+             linetype = 'dashed', color = 'gray50', linewidth = 0.4) +
+    annotate('segment', x = 1985, xend = 2041, y = 5, yend = 5,
+             linetype = 'dashed', color = 'gray50', linewidth = 0.4) +
+    annotate('text', x = 1994, y = 3, label = expression(bold('3 µS/cm')),
+             hjust = 1, size = 3.2) +
+    annotate('text', x = 1984, y = 5, label = expression(bold('5 µS/cm')),
+             hjust = 1, size = 3.2)
+
+ggsave(paste0('figs/fig2_', site, '_logistic.png'), width = 8, height = 5)
+
+## 4e. fig 2 (EC) quadratic ####
 
 # fit quadratic models to stream and precip spCond
 quad_s <- spcond_s %>%
@@ -587,7 +964,7 @@ fig2d %>%
 
 ggsave(paste0('figs/fig2_quadratic_', site, '.png'), width = 8, height = 5)
 
-## 4c. fig 2 (EC) cubic ####
+## 4f. fig 2 (EC) cubic ####
 
 # fit cubic models to stream and precip spCond
 cub_s <- spcond_s %>%
