@@ -1197,6 +1197,83 @@ panelA + panelB + plot_layout(nrow = 2)#, heights = c(4, 1))
 
 ggsave(paste0('figs/fig3_comparison_', site, '.png'), width = 6, height = 8)
 
+## 5z. sulfate vs nitrate in rain (acid contribution) ####
+
+
+acids <- p_official %>%
+    mutate(source = 'Precipitation') %>%
+    group_by(site, waterYr, source) %>%
+    summarize(SO4 = mean(SO4, na.rm = TRUE),
+              NO3 = mean(NO3, na.rm = TRUE),
+              site = first(site),
+              source = first(source),
+              .groups = 'drop',
+              n = n()) %>%
+    select(site, waterYr, SO4, NO3, n, source)
+vp1 <- select(acids, -SO4)
+vp2 <- select(acids, -NO3)
+
+trend_p1 <- get_trendline(vp1, site = 'all', lims = c(min(vp1$waterYr), 2040), baseline = bsln)
+trend_p1poly <- get_trendline(vp1, site = 'all', lims = c(min(vp1$waterYr), 2040), poly = TRUE, baseline = bsln)
+trend_p2 <- get_trendline(vp2, site = 'all', lims = c(min(vp1$waterYr), 2040), baseline = bsln)
+
+vp1 <- convert_to_long(vp1)
+vp2 <- convert_to_long(vp2)
+trend_p1 <- convert_to_long(trend_p1)
+trend_p1poly <- convert_to_long(trend_p1poly)
+trend_p2 <- convert_to_long(trend_p2)
+
+vp1 %>%
+    bind_rows(vp2) %>%
+    ggplot(aes(x = waterYr,
+               y = val,
+               color = var,
+               fill = var)) +
+               # shape = var)) +
+    geom_line() +
+    geom_point() +
+    # geom_line(data = trend_p1,
+    #           aes(x = waterYr, y = val),
+    #           color = 'black',
+    #           linewidth = 0.3,
+    #           show.legend = FALSE) +
+    # geom_line(data = trend_p1poly,
+    #           aes(x = waterYr, y = val),
+    #           color = 'red',
+    #           linetype = 'dotted',
+    #           linewidth = 0.3,
+    #           show.legend = FALSE) +
+    # geom_line(data = trend_p2,
+    #           aes(x = waterYr, y = val),
+    #           color = 'black',
+    #           linetype = 'dashed',
+    #           linewidth = 0.3,
+    #           show.legend = FALSE) +
+    # scale_color_manual(values = c(SO4_NO3 = 'blue3', base_cat = 'blue3'),
+    #                    labels = c(SO4_NO3 = 'Sum of Sulfate + Nitrate', base_cat = 'Sum of Base Cations')) +
+    # scale_shape_manual(values = c(SO4_NO3 = 21, base_cat = 21),
+    #                    labels = c(SO4_NO3 = 'Sum of Sulfate + Nitrate', base_cat = 'Sum of Base Cations')) +
+    # scale_fill_manual(values = c(SO4_NO3 = 'white', base_cat = 'blue3'),
+    #                   labels = c(SO4_NO3 = 'Sum of Sulfate + Nitrate', base_cat = 'Sum of Base Cations')) +
+    labs(x = "Water year",
+         y = "Volume-weighted mean concentration  (µeq/L)",
+         title = "Acid composition of precipitation at HBEF") +
+    # guides(color = guide_legend(title = NULL),
+    #        fill = guide_legend(title = NULL),
+    #        shape = guide_legend(title = NULL)) +
+    theme_few() +
+    theme(legend.position = 'inside',
+          legend.position.inside = c(0.7, 0.8))
+    # scale_y_continuous(limits = c(0, 120),
+    #                    expand = c(0, 0)) +
+    # scale_x_continuous(breaks = seq(1960, 2070, by = 10),
+    #                    limits = c(1960, 2071),
+    #                    expand = c(0, 0))
+
+panelA + panelB + plot_layout(nrow = 2)#, heights = c(4, 1))
+
+ggsave(paste0('figs/fig3_comparison_', site, '.png'), width = 6, height = 8)
+
 ## 5b. ion balance (stream) ####
 
 # compute water-year means for ion balance components
