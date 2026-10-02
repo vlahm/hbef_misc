@@ -12,39 +12,26 @@ library(tidyverse)
 # gsub(',', "', '",
 #     "refNo,site,date,timeEST,pH,DIC,spCond,temp,ANC960,ANCMet,gageHt,hydroGraph,flowGageHt,precipCatch,fieldCode,notes,uniqueID,waterYr,datetime,Ca,Mg,K,Na,TMAl,OMAl,Al_ICP,NH4,SO4,NO3,Cl,PO4,DOC,TDN,DON,SiO2,Mn,Fe,F,cationCharge,anionCharge,theoryCond,ionError,duplicate,sampleType,ionBalance,canonical")
 
-get_unambiguous_barcodes <- function(zz, dd, allow_differing_times = TRUE){
+get_unambiguous_barcodes <- function(zz, allow_differing_times = TRUE){
 
     #zz: an archive sample dataset, either for precip or stream samples
-    #dd: a field sample dataset, either for precip or stream samples
+    #returns barcodes whose site/date(/time) identifies exactly one archive bottle.
+    #joined to chemistry, a barcode lands on every analysis of that bottle: the
+    #primary and any lab duplicates (told apart by the duplicate column). keys
+    #shared by 2+ bottles (field duplicates, mislabels) get no barcode
 
     if(allow_differing_times){
         cols <- c('site', 'date')
-        zz$timeEST = NULL
-        dd$timeEST = NULL
     } else {
         cols <- c('site', 'date', 'timeEST')
         zz$timeEST = substr(zz$timeEST, 1, 5)
     }
 
-    zzsub = select(zz, all_of(cols))
-    zz_same_datetime = zz[duplicated(zzsub) | duplicated(zzsub, fromLast = TRUE), ] %>%
-        arrange(site, date)
-
-    # zzsub = select(zz, site, date)
-    # same_date = zz[duplicated(zzsub) | duplicated(zzsub, fromLast = TRUE), ]
-    # same_date = anti_join(same_date, same_datetime) %>%
-    #     arrange(site, date, timeEST)
-
-    ddsub = select(dd, all_of(cols))
-    dd_same_datetime = dd[duplicated(ddsub) | duplicated(ddsub, fromLast = TRUE), ] %>%
-        arrange(site, date)
-
-    zz_unambiguous = left_join(zz, ddsub, by = cols,
-                               relationship = 'many-to-many') %>%
-        anti_join(zz_same_datetime, by = cols) %>%
-        anti_join(dd_same_datetime, by = cols)
-
-    return(zz_unambiguous)
+    zz %>%
+        select(all_of(cols), barcode) %>%
+        group_by(across(all_of(cols))) %>%
+        filter(n() == 1) %>%
+        ungroup()
 }
 
 # args = commandArgs(trailingOnly=TRUE)[1]
@@ -106,7 +93,7 @@ p = bind_rows(pc, ph) %>%
            duplicate, sampleType, ionBalance, canonical, pHmetrohm) %>%
     mutate(across(everything(), as.character))
 
-barcodes_p = get_unambiguous_barcodes(arch_p, p, allow_differing_times = FALSE)
+barcodes_p = get_unambiguous_barcodes(arch_p, allow_differing_times = FALSE)
 
 p = p %>%
     # left_join(barcodes_p, by = c('site', 'date')) %>%
@@ -156,7 +143,7 @@ s = bind_rows(sc, sh) %>%
            pHmetrohm) %>%
     mutate(across(everything(), as.character))
 
-barcodes_s = get_unambiguous_barcodes(arch_s, s, allow_differing_times = FALSE)
+barcodes_s = get_unambiguous_barcodes(arch_s, allow_differing_times = FALSE)
 
 s = s %>%
     left_join(barcodes_s, by = c('site', 'date', 'timeEST')) %>%
