@@ -10,3 +10,5 @@ emily_plots
 *.jpg
 *_OLD.csv
 .aider*
+archive_inventory/data/*.xlsx
+archive_inventory/output/*.csv
